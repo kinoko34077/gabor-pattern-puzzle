@@ -34,7 +34,7 @@ test('横画面は右側、縦画面は下側へ時計回り相当の7スロッ�
  const positions=slots.map(id=>rail.indexOf('id="'+id+'"'));
  assert.ok(positions.every(x=>x>=0));
  assert.deepEqual(positions,[...positions].sort((a,b)=>a-b));
- assert.ok(html.includes('body{height:100dvh;display:flex;flex-direction:row'));
+ assert.match(html,/body\{width:var\(--app-width,100%\);height:var\(--app-height,100dvh\)/);
  assert.ok(html.includes('body{flex-direction:column}'));
  const portrait=html.slice(html.indexOf('@media (orientation:portrait)'));
  assert.match(portrait,/#toolbar\s*\{[^}]*grid-template-columns:repeat\(7,minmax\(0,1fr\)\)/);
