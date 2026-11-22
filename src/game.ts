@@ -149,7 +149,8 @@ export class Game {
    return {id:this.nextId++,kind,special,angle:0,rate:0};
  }
  restart(persist=true):void {
-   this.tasks=[];this.busy=false;this.phase='ready';this.phaseAge=0;this.startedAt=null;
+   this.tasks=[];this.busy=false;this.paused=false;this.phase='ready';this.phaseAge=0;this.startedAt=null;
+    this.hintTintStart=null;
    this.roundSeconds=this.initialSeconds;
    this.score=0;this.time=this.roundSeconds;this.hintCount=0;this.active=null;
    if(this.viewportSized){
@@ -213,7 +214,7 @@ export class Game {
    if(!this.findPossibleSwap())this.shuffle();
    return true;
  }
- cycleMode(){if(this.busy)return;this.mode=MODE_LIST[(MODE_LIST.indexOf(this.mode)+1)%3];this.restart()}
+ cycleMode(){if(this.busy||this.paused)return;this.mode=MODE_LIST[(MODE_LIST.indexOf(this.mode)+1)%3];this.restart()}
  cycleColor(){this.colorIndex=(this.colorIndex+1)%COLORS.length;this.emit('hint');saveGame(this)}
  private at(p:Point):Cell|null{return this.board[p.y]?.[p.x]??null}
  private inside(p:Point):boolean{return p.x>=0&&p.x<this.cols&&p.y>=0&&p.y<this.rows}
@@ -246,13 +247,13 @@ export class Game {
    }
    return null;
  }
- start(){if(this.startedAt===null&&this.phase==='ready'){
+ start(){if(!this.paused&&this.startedAt===null&&this.phase==='ready'){
    this.startedAt=this.now;this.phase='playing';this.phaseAge=0;
    if(this.lastDay!==today()){this.totalSeconds=0;this.lastDay=today()};
  }}
  /** 上下左右で隣接するセルへの交換を受け付ける。 */
  swap(a:Point,b:Point):boolean {
-   if(!this.inside(a)||!this.inside(b)||!this.axial(a,b)||this.busy||this.phase==='over')return false;
+   if(!this.inside(a)||!this.inside(b)||!this.axial(a,b)||this.busy||this.paused||this.phase==='over')return false;
    this.start();
    const ca=this.at(a),cb=this.at(b);if(!ca||!cb)return false;
    this.busy=true;this.phase='resolving';this.active=null;
@@ -352,7 +353,7 @@ export class Game {
    }
  }
  hint():boolean {
-   if(this.busy||this.phase==='over')return false;
+   if(this.busy||this.paused||this.phase==='over')return false;
    this.start();this.time-=3*(1+this.hintCount*.3);this.hintCount++;
    this.hintTintStart=this.now;
    const move=this.findPossibleSwap();
@@ -370,6 +371,8 @@ export class Game {
    const r=()=>this.random();
    const sequences:Array<{pattern:'wait'|'rotate'|'random'|'degree'|'map';duration:number;value:number|(()=>number);map?:'radial'|'columns'|'checker'|'rows'}>=[];
    const add=(pattern:'wait'|'rotate'|'random'|'degree'|'map',duration:number,value:number|(()=>number)=0,map?:'radial'|'columns'|'checker'|'rows')=>sequences.push({pattern,duration,value,map});
+   // 待機中から渦巻き状の配列を見せる。時間経過後の既存パターンも保持する。
+   add('map',0,90,'radial');add('rotate',18,180);
    add('degree',0,()=>Math.floor(r()*2)*90);
    add('wait',5);add('random',10);
    add('degree',20,()=>Math.floor(r()*4)*45);add('wait',5);add('random',10);
@@ -400,9 +403,9 @@ export class Game {
  }
  private setRotationSequence():void {
    const timeline=this.orientationTimeline();
-   if(this.startedAt===null&&this.rotationIndex>60)this.rotationIndex=1;
-   if(this.startedAt!==null&&this.rotationIndex===11){
-     const stages=[11,14,22,29,45,61];
+   if(this.startedAt===null&&this.rotationIndex>62)this.rotationIndex=1;
+   if(this.startedAt!==null&&this.rotationIndex===13){
+     const stages=[13,16,24,31,47,63];
      const upper=Math.min(stages.length-1,Math.floor(this.totalSeconds/200)+1);
      this.rotationIndex=stages[Math.floor(this.random()*upper)];
    }
@@ -439,6 +442,6 @@ export class Game {
  loadBoard(matrix:number[][]){
    if(matrix.length!==this.rows||matrix.some(row=>row.length!==this.cols))throw new Error('盤面の行数・列数が一致しません');
    this.board=matrix.map(row=>row.map(kind=>this.makeCell(kind)));
-   this.tasks=[];this.busy=false;this.phase='ready';this.startedAt=null;this.roundSeconds=this.initialSeconds;this.time=this.roundSeconds;this.score=0;
+   this.tasks=[];this.busy=false;this.paused=false;this.phase='ready';this.startedAt=null;this.roundSeconds=this.initialSeconds;this.time=this.roundSeconds;this.score=0;
  }
 }
