@@ -6,18 +6,12 @@ const clamp=(n:number,l=0,h=1)=>Math.min(h,Math.max(l,n));
 const ease=(t:number)=>{const x=clamp(t);return x*x*(3-2*x)};
 type PatchTexture={base:HTMLCanvasElement;soft:HTMLCanvasElement};
 
-/** 横画面基準の角度を保ち、縦画面では模様自身を90°回転する。 */
-export function displayedPatchAngle(angle:number,portrait:boolean):number {
- return angle+(portrait?90:0);
-}
-
 /** 画面全体に描画し、物理ピクセル密度の上限でメモリ消費を抑える。 */
 export class Renderer {
  private readonly canvas:HTMLCanvasElement;
  private readonly ctx:CanvasRenderingContext2D;
  private readonly textures=new Map<string,PatchTexture>();
  private density=1;
- private portrait=false;
  private width=0;
  private height=0;
  constructor(canvas:HTMLCanvasElement){
@@ -26,8 +20,7 @@ export class Renderer {
    if(!context)throw new Error('Canvas 2Dを利用できません');
    this.ctx=context;
  }
- resize(width:number,height:number,dpr:number,portrait=false):void {
-   this.portrait=portrait;
+ resize(width:number,height:number,dpr:number):void {
    const density=Math.max(.6,Math.min(dpr,2,Math.sqrt(8_000_000/(width*height))));
    const pixelWidth=Math.round(width*density),pixelHeight=Math.round(height*density);
    if(this.canvas.width!==pixelWidth||this.canvas.height!==pixelHeight){
@@ -104,7 +97,7 @@ export class Renderer {
    if(game.mode==='stereo')this.drawStereoMarks(game);
  }
  private drawPatch(tex:PatchTexture,x:number,y:number,w:number,h:number,rotation:number,alpha:number,blur:number):void {
-   const ctx=this.ctx;ctx.save();ctx.translate(x,y);ctx.rotate(displayedPatchAngle(rotation,this.portrait)*Math.PI/180);
+   const ctx=this.ctx;ctx.save();ctx.translate(x,y);ctx.rotate(rotation*Math.PI/180);
    ctx.globalAlpha=alpha;ctx.imageSmoothingEnabled=true;
    ctx.drawImage(tex.base,-w/2,-h/2,w,h);
    if(blur>0.01){ctx.globalAlpha=alpha*blur;ctx.drawImage(tex.soft,-w/2,-h/2,w,h)}

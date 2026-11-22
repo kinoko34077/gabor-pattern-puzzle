@@ -44,7 +44,7 @@ function updateLayout():void {
  const w=stage.clientWidth,h=stage.clientHeight;
  if(w<10||h<10)return;
  if(!game.resizeViewport(w,h)){needsLayout=true;return}
- needsLayout=false;renderer.resize(game.width,game.height,window.devicePixelRatio||1,window.matchMedia('(orientation: portrait)').matches);
+ needsLayout=false;renderer.resize(game.width,game.height,window.devicePixelRatio||1);
 }
 function scheduleLayout():void {needsLayout=true;requestAnimationFrame(updateLayout)}
 new ResizeObserver(scheduleLayout).observe(stage);
