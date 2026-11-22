@@ -15,7 +15,12 @@ test('Service Workerが配信スコープ外へアクセスせず旧キャッシ
   assert.ok(listeners.has('install')&&listeners.has('activate')&&listeners.has('fetch'));
   let installed;
   listeners.get('install')({waitUntil:promise=>installed=promise});await installed;
-  assert.equal(added.length,13);
+  const core=script.match(/const CORE = \[([\s\S]*?)\];/);
+  assert.ok(core,'Service Workerの事前キャッシュ定義が存在する');
+  const expected=[...core[1].matchAll(/'(\.\/[^']+)'/g)].map(m=>m[1]);
+  assert.equal(new Set(expected).size,expected.length,'同一ファイルを二重登録しない');
+  assert.equal(added.length,expected.length,'全てのCORE資産が登録される');
+  assert.deepEqual(added,[...expected.map(rel=>new URL(rel,scope).href)]);
   assert.ok(added.every(u=>u.startsWith(scope)),added);
   assert.ok(added.includes(scope+'index.html'));
   let activated;listeners.get('activate')({waitUntil:promise=>activated=promise});await activated;
