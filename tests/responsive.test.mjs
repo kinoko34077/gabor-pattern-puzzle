@@ -70,3 +70,44 @@ test('プレイ中のゲーム時間設定は次回のゲームまで反映し�
  g.restart();
  assert.equal(g.roundSeconds,30);assert.equal(g.time,30);
 });
+
+test('回転直後の交換・消去中でも論理描画領域を更新し、処理後に安全に再配置する',()=>{
+ const g=new Game({},seeded(451));
+ assert.equal(g.resizeViewport(1024,768),true);
+ const oldIds=new Set(g.board.flat().map(c=>c?.id));
+ const move=g.findPossibleSwap();assert.ok(move);
+ assert.equal(g.swap(...move),true);
+ assert.equal(g.isBusy,true);
+ const score=g.score,remaining=g.time,visual=g.visualNow;
+ const finished=g.resizeViewport(768,1024);
+ assert.equal(finished,false,'busy中の行列再編は延期する');
+ assert.equal(g.width,768);
+ assert.equal(g.height,1024);
+ const activeWidth=g.mode==='stereo'?g.width/2:g.width;
+ assert.ok(g.tile>0);
+ assert.ok(g.originX>=-0.01&&g.originY>=-0.01);
+ assert.ok(g.originX+g.cols*g.tile<=activeWidth+.01);
+ assert.ok(g.originY+g.rows*g.tile<=g.height+.01);
+ assert.equal(g.score,score);assert.equal(g.time,remaining);
+ assert.equal(g.visualNow,visual);
+ for(let i=0;i<300&&g.isBusy;i++)g.tick(.05);
+ assert.equal(g.isBusy,false,'既存の消去処理が完了する');
+ assert.equal(g.resizeViewport(768,1024),true);
+ assert.equal(g.width,768);assert.equal(g.height,1024);
+ assert.ok(g.board.flat().some(c=>oldIds.has(c?.id)));
+ assert.equal(g.phase,'playing');
+ assert.equal(g.resizeViewport(1024,768),true);
+ assert.equal(g.resizeViewport(768,1024),true);
+ assert.equal(g.resizeViewport(1024,768),true);
+});
+test('立体視モードのアニメーション中も片眼領域内に盤面を収める',()=>{
+ const g=new Game({},seeded(771));
+ g.cycleMode();g.cycleMode();
+ assert.equal(g.mode,'stereo');
+ g.resizeViewport(1024,768);
+ const move=g.findPossibleSwap();assert.ok(move);
+ assert.equal(g.swap(...move),true);
+ assert.equal(g.resizeViewport(768,1024),false);
+ assert.ok(g.originX>=-0.01);
+ assert.ok(g.originX+g.cols*g.tile<=g.halfWidth+.01);
+});
