@@ -23,7 +23,7 @@ test('配色ボタン用の切替は全デザインを一定順序で循環す�
  assert.notDeepEqual(colors[0],colors[1]);
  assert.equal(colors.at(-1).r,255);
 });
-test('画面の向きによらず右側7スロットの順序を保つ',()=>{
+test('横画面は右側、縦画面は下側へ時計回り相当の7スロットを並べる',()=>{
  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
  const start=html.indexOf('<nav id="toolbar"');
  const end=html.indexOf('</nav>',start);
@@ -35,7 +35,13 @@ test('画面の向きによらず右側7スロットの順序を保つ',()=>{
  assert.ok(positions.every(x=>x>=0));
  assert.deepEqual(positions,[...positions].sort((a,b)=>a-b));
  assert.ok(html.includes('body{height:100dvh;display:flex;flex-direction:row'));
- assert.ok(!html.includes('flex-direction:column}'));
+ assert.ok(html.includes('body{flex-direction:column}'));
+ const portrait=html.slice(html.indexOf('@media (orientation:portrait)'));
+ assert.match(portrait,/#toolbar\s*\{[^}]*grid-template-columns:repeat\(7,minmax\(0,1fr\)\)/);
+ assert.ok(portrait.includes('padding-bottom:env(safe-area-inset-bottom)'));
+ for(const [id,col] of [['settings-button',7],['mode-button',6],['palette-button',5],['plus-button',4],['minus-button',3],['hint-button',2],['score',1]]){
+   assert.ok(portrait.includes('#toolbar #'+id+'{grid-column:'+col));
+ }
  assert.ok(!html.includes('id="hud"'));
  assert.ok(!html.includes('id="ready-message"'));
  assert.ok(rail.includes('配色'));
