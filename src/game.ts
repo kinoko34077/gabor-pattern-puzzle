@@ -372,7 +372,7 @@ export class Game {
    const sequences:Array<{pattern:'wait'|'rotate'|'random'|'degree'|'map';duration:number;value:number|(()=>number);map?:'radial'|'columns'|'checker'|'rows'}>=[];
    const add=(pattern:'wait'|'rotate'|'random'|'degree'|'map',duration:number,value:number|(()=>number)=0,map?:'radial'|'columns'|'checker'|'rows')=>sequences.push({pattern,duration,value,map});
    // 待機中から渦巻き状の配列を見せる。時間経過後の既存パターンも保持する。
-   add('map',0,90,'radial');add('rotate',18,180);
+   add('map',0,()=>Math.floor(r()*2)*90,'radial');add('rotate',18,180);
    add('degree',0,()=>Math.floor(r()*2)*90);
    add('wait',5);add('random',10);
    add('degree',20,()=>Math.floor(r()*4)*45);add('wait',5);add('random',10);
