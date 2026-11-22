@@ -7,7 +7,7 @@ test('縦画面でもガボール画像に90°の追加回転を掛けない',()
  const main=readFileSync(new URL('../src/main.ts',import.meta.url),'utf8');
  assert.match(renderer,/ctx\.rotate\(rotation\*Math\.PI\/180\)/);
  assert.doesNotMatch(renderer,/displayedPatchAngle|this\.portrait|portrait\?90/);
- assert.doesNotMatch(main,/matchMedia\('\(orientation: portrait\)'\)\.matches/);
+ assert.match(main,/renderer\.resize\(game\.width,game\.height,window\.devicePixelRatio\|\|1\)/);
 });
 
 test('縦画面は下端へ位置だけ移し、文字やダイアログを正立表示する',()=>{
