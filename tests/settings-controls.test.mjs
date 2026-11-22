@@ -4,6 +4,8 @@ import {readFileSync} from 'node:fs';
 
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const main=readFileSync(new URL('../src/main.ts',import.meta.url),'utf8');
+const settings=readFileSync(new URL('../src/settings.ts',import.meta.url),'utf8');
+const viewport=readFileSync(new URL('../src/viewport.ts',import.meta.url),'utf8');
 const render=readFileSync(new URL('../src/render.ts',import.meta.url),'utf8');
 
 test('REQ-UI-TOAST: 配色通知は盤面端の控えめな表示にする',()=>{
@@ -16,21 +18,22 @@ test('REQ-UI-POPOVER: 設定は非モーダルで背景ぼかしなし、ボタ�
  assert.match(html,/<aside id="settings" class="settings-popover" role="region"[^>]*hidden>/);
  assert.match(html,/id="settings-button"[^>]*aria-controls="settings"[^>]*aria-expanded="false"/);
  assert.doesNotMatch(html,/<dialog|::backdrop|backdrop-filter\s*:/);
- assert.match(main,/settings\.hidden=false/);
- assert.match(main,/settingsButton\.getBoundingClientRect\(\)/);
- assert.match(main,/settings\.style\.left=/);
- assert.match(main,/settings\.style\.top=/);
- assert.doesNotMatch(main,/showModal\(\)/);
- assert.match(main,/closeSettingsButton\.focus\(\{preventScroll:true\}\)/);
- assert.match(main,/if\(focusWasInside\)canvas\.focus\(\{preventScroll:true\}\)/);
+ assert.match(settings,/this\.settings\.hidden=false/);
+ assert.match(viewport,/this\.settingsButton\.getBoundingClientRect\(\)/);
+ assert.match(viewport,/this\.settings\.style\.left=/);
+ assert.match(viewport,/this\.settings\.style\.top=/);
+ assert.doesNotMatch(settings,/showModal\(\)/);
+ assert.match(settings,/this\.closeSettingsButton\.focus\(\{preventScroll:true\}\)/);
+ assert.match(settings,/if\(focusWasInside\)this\.canvas\.focus\(\{preventScroll:true\}\)/);
 });
 test('REQ-UI-SESSION: 設定に一時停止・再開と待機復帰を備える',()=>{
  assert.match(html,/id="pause-button"/);
  assert.match(html,/id="end-game-button"/);
- assert.match(main,/game\.paused=manuallyPaused\|\|!settings\.hidden/);
- assert.match(main,/pauseButton\.addEventListener\('click'/);
- assert.match(main,/endGameButton\.addEventListener\('click'/);
- assert.match(main,/game\.restart\(\)/);
+ assert.match(settings,/this\.game\.paused=this\.manuallyPaused\|\|!this\.settings\.hidden/);
+ assert.match(settings,/this\.pauseButton\.addEventListener\('click'/);
+ assert.match(settings,/this\.endGameButton\.addEventListener\('click'/);
+ assert.match(settings,/this\.game\.restart\(\)/);
+ assert.match(main,/panel\.refreshPauseControls\(\)/);
 });
 test('REQ-UI-TOUCH: ダブルタップ誤拡大を抑えピンチズームを禁止しない',()=>{
  assert.match(html,/html,body\{[^}]*touch-action:manipulation/);

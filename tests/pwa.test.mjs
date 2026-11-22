@@ -12,7 +12,7 @@ test('PWAの設定・スコープ・オフライン構成が自己完結する',
   assert.equal(manifest.icons.filter(i=>i.purpose==='maskable').length,2);
   for(const icon of manifest.icons)assert.ok(fs.statSync(path.join(root,icon.src)).size>100);
   const sw=read('service-worker.js');
-  for(const file of ['index.html','manifest.webmanifest','dist/main.js','dist/game.js','dist/gabor.js','dist/render.js','dist/layout.js','dist/palette.js']){
+  for(const file of ['index.html','manifest.webmanifest','dist/main.js','dist/game.js','dist/gabor.js','dist/render.js','dist/layout.js','dist/palette.js','dist/viewport.js','dist/settings.js']){
     assert.ok(sw.includes(file),`Missing offline asset ${file}`);
     assert.ok(fs.existsSync(path.join(root,file)));
   }
