@@ -25,6 +25,10 @@ jobs:
           mkdir -p _site
           cp index.html manifest.webmanifest service-worker.js _site/
           cp -R icons dist _site/
+      - name: コミットに対応するPWAキャッシュ世代を設定
+        env:
+          BUILD_SHA: ${{ github.sha }}
+        run: node scripts/stamp-service-worker.mjs _site/service-worker.js "$BUILD_SHA"
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name != 'pull_request'
         with:

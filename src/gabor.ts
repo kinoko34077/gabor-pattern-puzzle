@@ -62,12 +62,33 @@ export function samplePatch(type: number,family:PatchFamily,u:number,v:number):[
 export function generatePatch(type:number,family:PatchFamily,size=256):ImageData {
   const output=new ImageData(size,size);
   const bytes=output.data;
-  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
-    const u=(x+0.5)/size*100-50,v=(y+0.5)/size*100-50;
-    const [l,a]=samplePatch(type,family,u,v);
-    const off=(y*size+x)*4;
-    bytes[off]=bytes[off+1]=bytes[off+2]=Math.round(l);
-    bytes[off+3]=Math.round(a);
+  const spec=PATCH_FAMILIES[family][clamp(type|0,1,7)-1];
+  const light=new Uint8Array(size);
+  const axis=new Float64Array(size);
+  const binary=family==='binary';
+  // 縞の明度・ガウス減衰のX軸は同一列内で不変。1列につき1回だけ計算する。
+  for(let x=0;x<size;x++){
+    const u=(x+0.5)/size*100-50;
+    const wave=2*Math.PI*spec.frequency*u;
+    light[x]=Math.round(clamp(spec.bias+spec.cos*Math.cos(wave)+spec.sin*Math.sin(wave),0,255));
+    axis[x]=binary?u-0.06358432458825:(Math.abs(u)/EDGE_FIT.sigmaX)**EDGE_FIT.exponent;
+  }
+  for(let y=0;y<size;y++){
+    const v=(y+0.5)/size*100-50;
+    const yAxis=binary?v-0.06355420214318:(Math.abs(v)/EDGE_FIT.sigmaY)**EDGE_FIT.exponent;
+    for(let x=0;x<size;x++){
+      let alpha:number;
+      if(binary){
+        const r=Math.hypot(axis[x],yAxis);
+        alpha=255/(1+Math.exp(Math.max(-50,Math.min(50,(r-44.991946656886405)/0.24096192115137702))));
+      }else{
+        alpha=255*Math.exp(-0.5*(axis[x]+yAxis))+EDGE_FIT.offset;
+        alpha=clamp(alpha,0,255);
+      }
+      const at=(y*size+x)*4;
+      bytes[at]=bytes[at+1]=bytes[at+2]=light[x];
+      bytes[at+3]=Math.round(alpha);
+    }
   }
   return output;
 }
