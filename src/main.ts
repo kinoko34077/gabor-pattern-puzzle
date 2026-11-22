@@ -44,16 +44,37 @@ for(const option of PALETTE_OPTIONS){
 }
 let last=performance.now(),needsLayout=true;
 function updateLayout():void {
- const w=stage.clientWidth,h=stage.clientHeight;
- if(w<10||h<10)return;
- if(!game.resizeViewport(w,h)){needsLayout=true;return}
- needsLayout=false;renderer.resize(game.width,game.height,window.devicePixelRatio||1);
+ // CSS実寸を基準に描画サイズ・操作座標を同期する。回転直後の中間サイズは再計測する。
+ const rect=stage.getBoundingClientRect();
+ const w=Math.round(rect.width),h=Math.round(rect.height);
+ if(w<10||h<10){needsLayout=true;return}
+ const settled=game.resizeViewport(w,h);
+ // busy中でも盤面の論理幅・高さは先に切り替え、Canvasの引き伸ばしを防ぐ。
+ renderer.resize(game.width,game.height,window.devicePixelRatio||1);
+ needsLayout=!settled;
+ placeSettings();
 }
 function scheduleLayout():void {needsLayout=true;requestAnimationFrame(updateLayout)}
+function syncViewportSize():void {
+ const visual=window.visualViewport;
+ // ピンチズーム中は表示領域を縮め直さず、通常の拡大操作を維持する。
+ const viewport=visual&&Math.abs(visual.scale-1)<0.015?visual:null;
+ const width=viewport?.width??window.innerWidth;
+ const height=viewport?.height??window.innerHeight;
+ if(width>10&&height>10&&Number.isFinite(width)&&Number.isFinite(height)){
+   const root=document.documentElement.style;
+   const w=Math.round(width*100)/100+'px',h=Math.round(height*100)/100+'px';
+   if(root.getPropertyValue('--app-width')!==w)root.setProperty('--app-width',w);
+   if(root.getPropertyValue('--app-height')!==h)root.setProperty('--app-height',h);
+ }
+ scheduleLayout();
+}
 new ResizeObserver(scheduleLayout).observe(stage);
-window.addEventListener('resize',scheduleLayout);
-window.addEventListener('orientationchange',scheduleLayout);
-updateLayout();
+window.addEventListener('resize',syncViewportSize);
+window.addEventListener('orientationchange',syncViewportSize);
+window.visualViewport?.addEventListener('resize',syncViewportSize);
+window.visualViewport?.addEventListener('scroll',placeSettings);
+syncViewportSize();
 
 const modeLabel={gabor:'ガボール',binary:'白黒',stereo:'立体視'} as const;
 function syncControls():void {
@@ -117,6 +138,7 @@ function pointFrom(ev:PointerEvent):Point {
 }
 let startPoint:Point|null=null,activeId:number|null=null;
 canvas.addEventListener('pointerdown',ev=>{
+ if(needsLayout)updateLayout();
  if(game.phase==='over'||game.paused||!settings.hidden)return;
  if(ev.button!==0&&ev.pointerType==='mouse')return;
  ev.preventDefault();
@@ -176,12 +198,19 @@ function placeSettings():void {
  const button=settingsButton.getBoundingClientRect();
  const popup=settings.getBoundingClientRect();
  const margin=8;
+ const bodyRect=document.body.getBoundingClientRect();
+ const bodyStyle=getComputedStyle(document.body);
+ const inset=(v:string)=>Number.parseFloat(v)||0;
+ const leftMin=bodyRect.left+inset(bodyStyle.paddingLeft)+margin;
+ const topMin=bodyRect.top+inset(bodyStyle.paddingTop)+margin;
+ const leftMax=Math.max(leftMin,bodyRect.right-inset(bodyStyle.paddingRight)-popup.width-margin);
+ const topMax=Math.max(topMin,bodyRect.bottom-inset(bodyStyle.paddingBottom)-popup.height-margin);
  const clamp=(x:number,min:number,max:number)=>Math.max(min,Math.min(max,x));
  const vertical=window.matchMedia('(orientation: portrait)').matches;
  const left=vertical?button.right-popup.width:button.left-popup.width-8;
  const top=vertical?button.top-popup.height-8:button.top;
- settings.style.left=clamp(left,margin,Math.max(margin,window.innerWidth-popup.width-margin))+'px';
- settings.style.top=clamp(top,margin,Math.max(margin,window.innerHeight-popup.height-margin))+'px';
+ settings.style.left=clamp(left,leftMin,leftMax)+'px';
+ settings.style.top=clamp(top,topMin,topMax)+'px';
 }
 function openSettings():void {
  if(!settings.hidden)return;
