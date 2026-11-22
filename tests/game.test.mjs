@@ -117,3 +117,15 @@ test('REQ-VISUAL-001: 待機中から渦巻き配置が存在し、開始・停�
  assert.notEqual(g.board[0][0].angle,angle,'停止中も模様角度は変わる');
  assert.ok(g.visualNow>visual);
 });
+
+test('REQ-VISUAL-002: 長い待機後に開始しても渦巻き演出が最初から現れる',()=>{
+ const g=new Game({},seeded(34));
+ forward(g,35);
+ assert.equal(g.phase,'ready');
+ g.start();
+ assert.equal(g.phase,'playing');
+ const before=g.board[0][0].angle;
+ g.tick(.05);g.tick(.05);
+ assert.notEqual(g.board[0][0].angle,before);
+ assert.ok(new Set(g.board.flat().map(c=>Math.round(c.angle))).size>4);
+});
