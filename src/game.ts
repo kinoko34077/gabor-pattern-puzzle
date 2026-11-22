@@ -115,7 +115,13 @@ export class Game {
  setBackground(hex:string):void {if(!isHexColor(hex))return;this.backgroundOverride=hex;saveGame(this)}
  clearBackground():void {this.backgroundOverride='';saveGame(this)}
  setPatchColor(hex:string):void {if(!isHexColor(hex))return;this.patchOverride=hex;this.theme='custom';saveGame(this)}
- randomizePalette():void {this.paletteShift=(this.paletteShift+1+Math.floor(this.random()*6))%7;if(this.theme==='classic'||this.theme==='custom')this.theme='set2';saveGame(this)}
+ /** 右側の配色ボタンは全デザインを一定の順番で切り替える。 */
+ cycleTheme():PaletteName {
+   const i=PALETTE_OPTIONS.findIndex(p=>p.id===this.theme);
+   const result=PALETTE_OPTIONS[(i+1)%PALETTE_OPTIONS.length].id;
+   this.theme=result;this.paletteShift=0;saveGame(this);
+   return result;
+ }
  setDuration(sec:number):void {
    if(!DURATIONS.includes(sec as typeof DURATIONS[number]))return;
    this.initialSeconds=sec;
