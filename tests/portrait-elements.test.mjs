@@ -7,7 +7,7 @@ test('縦画面でもガボール画像に90°の追加回転を掛けない',()
  const main=readFileSync(new URL('../src/main.ts',import.meta.url),'utf8');
  assert.match(renderer,/ctx\.rotate\(rotation\*Math\.PI\/180\)/);
  assert.doesNotMatch(renderer,/displayedPatchAngle|this\.portrait|portrait\?90/);
- assert.doesNotMatch(main,/matchMedia\('\(orientation: portrait\)'\)\.matches/);
+ assert.match(main,/renderer\.resize\(game\.width,game\.height,window\.devicePixelRatio\|\|1\)/);
 });
 
 test('縦画面は下端へ位置だけ移し、文字やダイアログを正立表示する',()=>{
@@ -26,6 +26,8 @@ test('縦画面は下端へ位置だけ移し、文字やダイアログを正�
  assert.doesNotMatch(portrait,/rotate\s*\(/);
  assert.doesNotMatch(portrait,/#game\s*\{[^}]*transform\s*:/);
  assert.doesNotMatch(portrait,/dialog\s*\{[^}]*transform\s*:/);
- assert.match(portrait,/dialog\s*\{[^}]*max-height:calc\(100dvh - 24px\)/);
- assert.match(portrait,/#theme-toast\s*\{[^}]*translate\(-50%,-50%\)/);
+ assert.doesNotMatch(portrait,/#theme-toast\\s*\\{[^}]*translate\\(-50%,-50%\\)/);
+ assert.doesNotMatch(portrait,/dialog\\s*\\{/);
+ assert.match(html,/<aside id="settings" class="settings-popover" role="region"/);
+ assert.doesNotMatch(html,/<dialog|::backdrop|backdrop-filter\\s*:/);
 });

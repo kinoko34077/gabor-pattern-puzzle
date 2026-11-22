@@ -77,3 +77,55 @@ test('REQ-GAME-005: 消去・落下・連鎖の実行順序を保持する',()=>
  assert.equal(g.phase,'playing');
  assert.equal(g.isBusy,false);
 });
+
+test('REQ-PAUSE-001: 一時停止中は得点・時間・予定処理・交換・ヒントが停止し再開できる',()=>{
+ const g=new Game({},seeded(52));
+ const move=g.findPossibleSwap();assert.ok(move);
+ assert.equal(g.swap(...move),true);
+ g.tick(.08); // 交換中のまま一時停止
+ const saved={now:g.now,time:g.time,score:g.score,visualNow:g.visualNow,events:g.eventLog.length};
+ g.paused=true;
+ forward(g,3);
+ assert.equal(g.now,saved.now);assert.equal(g.time,saved.time);
+ assert.equal(g.score,saved.score);assert.equal(g.eventLog.length,saved.events);
+ assert.ok(g.visualNow>saved.visualNow,'停止中も模様は描画できる');
+ assert.equal(g.swap(...move),false);assert.equal(g.hint(),false);
+ g.paused=false;forward(g,2);
+ assert.ok(g.now>saved.now);assert.ok(g.score>saved.score);
+ assert.equal(g.isBusy,false);
+});
+test('REQ-SESSION-001: ゲームの終了は待機に戻り、再操作で新規開始する',()=>{
+ const g=new Game({},seeded(12));
+ const move=g.findPossibleSwap();assert.ok(move);
+ g.swap(...move);forward(g,1);assert.ok(g.score>0);
+ g.paused=true;g.restart();
+ assert.equal(g.phase,'ready');assert.equal(g.startedAt,null);
+ assert.equal(g.isBusy,false);assert.equal(g.paused,false);
+ assert.equal(g.score,0);assert.equal(g.time,g.roundSeconds);
+ assert.ok(g.findPossibleSwap());
+ g.swap(...g.findPossibleSwap());assert.equal(g.isPlaying,true);
+});
+test('REQ-VISUAL-001: 待機中から渦巻き配置が存在し、開始・停止に関わらず向きが変わる',()=>{
+ const g=new Game({},seeded(79));
+ const before=g.board.flat().map(c=>c.angle);
+ assert.ok(new Set(before.map(v=>Math.round(v))).size>4,'初期状態は放射状の角度配置');
+ assert.equal(g.phase,'ready');
+ g.tick(.05);g.tick(.05);
+ assert.ok(g.board.flat().some((c,i)=>c.angle!==before[i]),'待機状態で回転を始める');
+ const angle=g.board[0][0].angle,visual=g.visualNow;
+ g.paused=true;g.tick(.1);
+ assert.notEqual(g.board[0][0].angle,angle,'停止中も模様角度は変わる');
+ assert.ok(g.visualNow>visual);
+});
+
+test('REQ-VISUAL-002: 長い待機後に開始しても渦巻き演出が最初から現れる',()=>{
+ const g=new Game({},seeded(34));
+ forward(g,35);
+ assert.equal(g.phase,'ready');
+ g.start();
+ assert.equal(g.phase,'playing');
+ const before=g.board[0][0].angle;
+ g.tick(.05);g.tick(.05);
+ assert.notEqual(g.board[0][0].angle,before);
+ assert.ok(new Set(g.board.flat().map(c=>Math.round(c.angle))).size>4);
+});
