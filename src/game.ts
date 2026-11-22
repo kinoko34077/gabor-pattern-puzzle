@@ -188,9 +188,18 @@ export class Game {
  }
  /** 画面回転時も進捗を保持し、盤面の重複領域を維持して周辺のみ補充する。 */
  resizeViewport(width:number,height:number,force=false):boolean {
-   if(this.busy)return false;
    const w=Math.max(160,Math.round(width)),h=Math.max(160,Math.round(height));
-    const layout=fitBoard(w,h,this.densityRows,this.mode==='stereo');
+   const stereo=this.mode==='stereo';
+   const layout=fitBoard(w,h,this.densityRows,stereo);
+   if(this.busy){
+     // 交換・消去中は盤面の行列構成を変更しないが、描画領域は即座に新サイズへ追従する。
+     const activeWidth=stereo?w/2:w;
+     this.width=w;this.height=h;this.viewportSized=true;
+     this.tile=Math.min(layout.tile,activeWidth/this.cols,h/this.rows);
+     this.originX=(activeWidth-this.cols*this.tile)/2;
+     this.originY=(h-this.rows*this.tile)/2;
+     return false; // animation完了後に行列数を確定する
+   }
    const old=this.board,oldRows=this.rows,oldCols=this.cols;
    this.width=w;this.height=h;this.viewportSized=true;
    this.tile=layout.tile;this.rows=layout.rows;this.cols=layout.cols;
