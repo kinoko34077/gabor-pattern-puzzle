@@ -37,4 +37,4 @@ Canvasはtouch-action:noneでドラッグ入力を処理し、ページ・ツー
 
 Service Workerは同一オリジン・同一スコープのGETのみを制御します。HTMLをネットワーク優先とし、通信できない場合はキャッシュへ戻します。JavaScript・manifest・アイコンは配信前にまとめて事前キャッシュします。
 
-新規に増えた`dist/layout.js`と`dist/palette.js`も事前キャッシュ対象です。Pagesのデプロイコミットによってキャッシュ世代を更新し、旧キャッシュを削除します。
+`dist/gabor.js`・`dist/palette.js`・`dist/layout.js`・`dist/game.js`・`dist/render.js`・`dist/viewport.js`・`dist/settings.js`・`dist/main.js`を事前キャッシュし、standaloneバンドルも同じ依存セットから生成します。TypeScriptの実ソース／バンドル登録／PWA事前キャッシュの集合が一致することをテストで検証します。Pagesのデプロイコミットによってキャッシュ世代を更新し、旧キャッシュを削除します。
