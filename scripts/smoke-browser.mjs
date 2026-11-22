@@ -18,7 +18,8 @@ if(!chrome)throw new Error('Chrome/Chromiumが見つかりません。CHROME_BIN
 function smoke(){
  const root=document.documentElement;
  let attempts=0;
- const check=(yes,label)=>{if(!yes)throw new Error(label)};
+ let checks=0;
+ const check=(yes,label)=>{checks++;if(!yes)throw new Error(label)};
  const el=id=>document.getElementById(id);
  const attempt=()=>{
    if(!window.__gaborPuzzleDev){
