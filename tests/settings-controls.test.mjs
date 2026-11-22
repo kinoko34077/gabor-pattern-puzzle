@@ -21,6 +21,8 @@ test('REQ-UI-POPOVER: 設定は非モーダルで背景ぼかしなし、ボタ�
  assert.match(main,/settings\.style\.left=/);
  assert.match(main,/settings\.style\.top=/);
  assert.doesNotMatch(main,/showModal\(\)/);
+ assert.match(main,/closeSettingsButton\.focus\(\{preventScroll:true\}\)/);
+ assert.match(main,/if\(focusWasInside\)canvas\.focus\(\{preventScroll:true\}\)/);
 });
 test('REQ-UI-SESSION: 設定に一時停止・再開と待機復帰を備える',()=>{
  assert.match(html,/id="pause-button"/);
