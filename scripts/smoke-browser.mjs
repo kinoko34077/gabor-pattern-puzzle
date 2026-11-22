@@ -59,7 +59,7 @@ function smoke(){
      el('settings-button').click();el('end-game-button').click();
      check(g.phase==='ready'&&g.score===0&&g.startedAt===null,'return to ready');
      root.dataset.smoke='PASS';
-     root.dataset.smokeCount='14';
+     root.dataset.smokeCount=String(checks);
    }catch(error){
      root.dataset.smoke='FAIL:'+String(error?.message||error);
    }
