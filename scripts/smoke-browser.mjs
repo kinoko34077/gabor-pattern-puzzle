@@ -32,6 +32,11 @@ function smoke(){
      const stage=el('stage'),toolbar=el('toolbar'),canvas=el('game');
      const a=stage.getBoundingClientRect(),b=toolbar.getBoundingClientRect();
      check(a.width>0&&a.height>0,'canvas empty');
+     // Window登録直後から最初のrAF描画寸法確定までの中間状態は観測対象外。
+     if(Math.abs(g.width-a.width)>1||Math.abs(g.height-a.height)>1){
+       if(++attempts<100){setTimeout(attempt,30);return}
+       throw new Error('draw size drift '+g.width+'x'+g.height+' vs '+a.width+'x'+a.height);
+     }
      for(const r of [a,b,canvas.getBoundingClientRect()]){
        check(r.left>=-1&&r.top>=-1&&r.right<=innerWidth+1&&r.bottom<=innerHeight+1,'viewport overflow');
      }
