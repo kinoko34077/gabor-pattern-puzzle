@@ -189,12 +189,17 @@ function openSettings():void {
  settings.hidden=false;
  settingsButton.setAttribute('aria-expanded','true');
  syncPause();placeSettings();
+ // モーダルから非モーダルに変わっても、キーボード利用者の操作起点を明示する。
+ closeSettingsButton.focus({preventScroll:true});
 }
 function closeSettings():void {
  if(settings.hidden)return;
+ const focusWasInside=settings.contains(document.activeElement);
  settings.hidden=true;
  settingsButton.setAttribute('aria-expanded','false');
  syncPause();
+ // 非表示のパネル内にフォーカスを残さず、従来どおり盤面のキー操作へ戻す。
+ if(focusWasInside)canvas.focus({preventScroll:true});
 }
 function toggleSettings():void {
  if(settings.hidden)openSettings();
