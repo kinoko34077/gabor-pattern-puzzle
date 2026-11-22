@@ -63,7 +63,7 @@ export class Game {
  width:number=DESIGN.width;
  height:number=DESIGN.height;
  viewportSized=false;originX=0;originY=0;densityRows=6;
- initialSeconds=60;visualSpeed=1;visualNow=0;paused=false;theme:PaletteName='set2';
+ initialSeconds=60;roundSeconds=60;visualSpeed=1;visualNow=0;paused=false;theme:PaletteName='set2';
  backgroundOverride='';patchOverride='#49bfae';paletteShift=0;
  readonly controlWidth=DESIGN.controlsWidth;
  rows=6; cols=9;tile=90;
@@ -96,6 +96,7 @@ export class Game {
    this.rows=clamp(num(v.rows,6),5,16);
    this.densityRows=clamp(num(v.density??v.rows,6),4,10);
    this.initialSeconds=DURATIONS.includes(v.duration as typeof DURATIONS[number])?v.duration!:60;
+   this.roundSeconds=this.initialSeconds;
    this.visualSpeed=clamp(num(v.speed,1),0.25,2);
    this.theme=THEME_NAMES.includes(v.theme as PaletteName)?v.theme!:'set2';
    this.backgroundOverride=isHexColor(v.background)?v.background:'';
@@ -115,7 +116,13 @@ export class Game {
  clearBackground():void {this.backgroundOverride='';saveGame(this)}
  setPatchColor(hex:string):void {if(!isHexColor(hex))return;this.patchOverride=hex;this.theme='custom';saveGame(this)}
  randomizePalette():void {this.paletteShift=(this.paletteShift+1+Math.floor(this.random()*6))%7;if(this.theme==='classic'||this.theme==='custom')this.theme='set2';saveGame(this)}
- setDuration(sec:number):void {if(!DURATIONS.includes(sec as typeof DURATIONS[number]))return;this.initialSeconds=sec;if(this.phase==='ready'||this.phase==='over')this.time=sec;saveGame(this)}
+ setDuration(sec:number):void {
+   if(!DURATIONS.includes(sec as typeof DURATIONS[number]))return;
+   this.initialSeconds=sec;
+   // 開始前は即反映。進行中・終了後は次回restartまで現在の制限時間を保持する。
+   if(this.phase==='ready'){this.roundSeconds=sec;this.time=sec}
+   saveGame(this)
+ }
  setVisualSpeed(speed:number):void {this.visualSpeed=clamp(num(speed,1),0.25,2);saveGame(this)}
  setDensity(value:number):void {this.densityRows=clamp(Math.round(value),4,10);if(this.viewportSized)this.resizeViewport(this.width,this.height,true);else this.setRows(this.densityRows-this.rows);saveGame(this)}
  get isBusy():boolean{return this.busy}
@@ -123,7 +130,7 @@ export class Game {
  get controlX():number{return this.viewportSized?this.width:DESIGN.width-DESIGN.controlsWidth}
  get halfWidth():number{return this.controlX/2}
  get isPlaying():boolean{return this.startedAt!==null&&this.phase!=='over'}
- get timeBarHeight():number{return this.height/this.initialSeconds*clamp(this.time,0,this.initialSeconds)}
+ get timeBarHeight():number{return this.height/this.roundSeconds*clamp(this.time,0,this.roundSeconds)}
  private emit(kind:Event['kind'],value?:number){this.eventLog.push({kind,time:this.now,value});if(this.eventLog.length>64)this.eventLog.shift()}
  private schedule(delay:number,action:()=>void){
    const task={at:this.now+Math.max(0,delay),action};
@@ -137,7 +144,8 @@ export class Game {
  }
  restart(persist=true):void {
    this.tasks=[];this.busy=false;this.phase='ready';this.phaseAge=0;this.startedAt=null;
-   this.score=0;this.time=this.initialSeconds;this.hintCount=0;this.active=null;
+   this.roundSeconds=this.initialSeconds;
+   this.score=0;this.time=this.roundSeconds;this.hintCount=0;this.active=null;
    if(this.viewportSized){
      const v=fitBoard(this.width,this.height,this.densityRows,this.mode==='stereo');
      this.rows=v.rows;this.cols=v.cols;this.tile=v.tile;this.originX=v.originX;this.originY=v.originY;
@@ -412,7 +420,7 @@ export class Game {
    // 設定を開いている間はゲームの時計を止め、模様の視覚変化だけ継続する。
    if(!this.paused){
      this.now+=dt*1000;this.phaseAge+=dt;
-     if(this.isPlaying){this.time=clamp(this.time,0,Math.max(120,this.initialSeconds))-dt;this.score+=dt;
+     if(this.isPlaying){this.time=clamp(this.time,0,Math.max(120,this.roundSeconds))-dt;this.score+=dt;
        if(this.time<=0){this.time=0;this.endGame()}}
      while(this.tasks.length&&this.tasks[0].at<=this.now){const task=this.tasks.shift()!;task.action()}
    }
@@ -425,6 +433,6 @@ export class Game {
  loadBoard(matrix:number[][]){
    if(matrix.length!==this.rows||matrix.some(row=>row.length!==this.cols))throw new Error('盤面の行数・列数が一致しません');
    this.board=matrix.map(row=>row.map(kind=>this.makeCell(kind)));
-   this.tasks=[];this.busy=false;this.phase='ready';this.startedAt=null;this.time=this.initialSeconds;this.score=0;
+   this.tasks=[];this.busy=false;this.phase='ready';this.startedAt=null;this.roundSeconds=this.initialSeconds;this.time=this.roundSeconds;this.score=0;
  }
 }

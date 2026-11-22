@@ -105,7 +105,7 @@ export class Renderer {
  }
  private drawTimeBar(game:Game):void{
    if(game.phase==='ready'||game.phase==='over')return;
-   const ctx=this.ctx,v=clamp(game.time/game.initialSeconds,0,1);
+   const ctx=this.ctx,v=clamp(game.time/game.roundSeconds,0,1);
    ctx.fillStyle='rgba(255,107,107,.65)';
    ctx.fillRect(0,game.height*(1-v),5,game.height*v);
  }

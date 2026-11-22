@@ -56,3 +56,17 @@ test('設定のゲーム時間・色・動作速度を検証する',()=>{
  assert.equal(PALETTES.set2.colors.length,7);
  assert.equal(paletteColor('sunset',7,0,'#112233').a,255);
 });
+
+test('プレイ中のゲーム時間設定は次回のゲームまで反映しない',()=>{
+ const g=new Game({},seeded(125));g.setDuration(180);g.restart();
+ g.start();g.tick(.1);
+ const before=g.time;assert.ok(before>179);
+ g.setDuration(30);
+ assert.equal(g.initialSeconds,30);
+ assert.equal(g.roundSeconds,180);
+ g.tick(.1);
+ assert.ok(g.time>170, '180秒のプレイ中に残り時間が短縮されてはいけない');
+ assert.ok(Math.abs(g.time-before+.1)<.01);
+ g.restart();
+ assert.equal(g.roundSeconds,30);assert.equal(g.time,30);
+});

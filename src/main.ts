@@ -64,10 +64,10 @@ function syncControls():void {
 function refreshHud():void {
  const points=String(Math.floor(game.score));
  if(score.textContent!==points)score.textContent=points;
- const t=game.phase==='ready'?game.initialSeconds:game.time;
+ const t=game.phase==='ready'?game.roundSeconds:game.time;
  const timeString=Math.max(0,t).toFixed(1)+'秒';
  if(clock.textContent!==timeString)clock.textContent=timeString;
- progress.max=game.initialSeconds;progress.value=Math.max(0,Math.min(game.initialSeconds,t));
+ progress.max=game.roundSeconds;progress.value=Math.max(0,Math.min(game.roundSeconds,t));
  const modeText=modeLabel[game.mode];
  if(modeButton.dataset.mode!==game.mode){modeButton.dataset.mode=game.mode;modeButton.setAttribute('aria-label','表示モード：'+modeText);modeButton.title='表示モード：'+modeText;}
  ready.hidden=game.phase!=='ready';
