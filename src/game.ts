@@ -249,6 +249,8 @@ export class Game {
  }
  start(){if(!this.paused&&this.startedAt===null&&this.phase==='ready'){
    this.startedAt=this.now;this.phase='playing';this.phaseAge=0;
+   // 待機が長く続いても、ゲーム開始後に渦巻き演出をすぐ確認できる。
+   if(this.rotationIndex>2){this.rotationIndex=0;this.rotationAge=0;this.setRotationSequence()}
    if(this.lastDay!==today()){this.totalSeconds=0;this.lastDay=today()};
  }}
  /** 上下左右で隣接するセルへの交換を受け付ける。 */
