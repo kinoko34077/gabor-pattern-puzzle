@@ -1,11 +1,17 @@
 import {Game,DESIGN,COLORS,type Cell,type Mode,type Point,type ColorSpec} from './game.js';
 import {generatePatch,type PatchFamily} from './gabor.js';
 
+const HINT_COLORS:readonly ColorSpec[]=[
+ {r:255,g:0,b:255,a:255},{r:0,g:255,b:255,a:255},
+ {r:255,g:0,b:0,a:255},{r:0,g:0,b:255,a:255},
+ {r:0,g:255,b:0,a:255},{r:0,g:0,b:0,a:255},
+ {r:255,g:128,b:0,a:255}
+];
 const TAU=Math.PI*2;
 const clamp=(n:number,l=0,h=1)=>Math.min(h,Math.max(l,n));
 const ease=(t:number)=>{const x=clamp(t);return x*x*(3-2*x)};
 
-/** Zero runtime dependencies: every Gabor pixel is freshly computed. */
+/** 外部描画エンジンに依存せず、ガボール画像を数学的に生成して描画する。 */
 export class Renderer {
  private readonly canvas:HTMLCanvasElement;
  private readonly ctx:CanvasRenderingContext2D;
@@ -14,7 +20,7 @@ export class Renderer {
  constructor(canvas:HTMLCanvasElement){
    this.canvas=canvas;this.canvas.width=DESIGN.width*this.density;this.canvas.height=DESIGN.height*this.density;
    const context=canvas.getContext('2d',{alpha:false,desynchronized:true});
-   if(!context)throw new Error('Canvas2D unavailable');this.ctx=context;
+   if(!context)throw new Error('Canvas 2Dを利用できません');this.ctx=context;
  }
  private texture(kind:number,family:PatchFamily,color:ColorSpec):HTMLCanvasElement {
    const name=`${kind}/${family}/${color.r}/${color.g}/${color.b}`;
@@ -29,7 +35,7 @@ export class Renderer {
      }
    }
    const cv=document.createElement('canvas');cv.width=cv.height=size;
-   const cx=cv.getContext('2d');if(!cx)throw Error('No offscreen context');cx.putImageData(data,0,0);
+   const cx=cv.getContext('2d');if(!cx)throw Error('画像生成用Canvasを利用できません');cx.putImageData(data,0,0);
    this.textures.set(name,cv);return cv;
  }
  private offset(cell:Cell,point:Point,now:number):Point {
@@ -47,6 +53,9 @@ export class Renderer {
    ctx.save();ctx.beginPath();ctx.rect(0,0,game.controlX,DESIGN.height);ctx.clip();
    const tint=game.color;
    const family:PatchFamily=game.mode==='binary'?'binary':game.family;
+   // ヒントの色変化は各セル共通。フレームにつき1回だけ求める。
+   const hintElapsed=game.hintTintStart===null?Infinity:(game.now-game.hintTintStart)/1000;
+   const hintBlend=hintElapsed<0?0:hintElapsed<.5?hintElapsed/.5:hintElapsed<4.5?1-(hintElapsed-.5)/4:0;
    for(let y=0;y<game.rows;y++)for(let x=0;x<game.cols;x++){
      const cell=game.board[y][x];if(!cell)continue;
      const point=this.offset(cell,{x,y},game.now);
@@ -60,16 +69,7 @@ export class Renderer {
      const widthFactor=cell.special==='horizontal'?1.5:cell.special==='vertical'?.8:cell.special==='checker'?1.5:cell.special==='bomb'?.6:1;
      const heightFactor=cell.special==='vertical'?1.5:cell.special==='horizontal'?.8:cell.special==='checker'?1.5:cell.special==='bomb'?.6:1;
      const tex=this.texture(cell.kind,family,tint);
-     // Hint activation temporarily highlights the board by kind,
-     // then eases back to the active palette over 4 seconds.
-     const hintElapsed=game.hintTintStart===null?Infinity:(game.now-game.hintTintStart)/1000;
-     const hintBlend=hintElapsed<0?0:hintElapsed<.5?hintElapsed/.5:hintElapsed<4.5?1-(hintElapsed-.5)/4:0;
-     const hintColors:ColorSpec[]=[
-       {r:255,g:0,b:255,a:255},{r:0,g:255,b:255,a:255},
-       {r:255,g:0,b:0,a:255},{r:0,g:0,b:255,a:255},
-       {r:0,g:255,b:0,a:255},{r:0,g:0,b:0,a:255},
-       {r:255,g:128,b:0,a:255}];
-     const hintTex=hintBlend>0?this.texture(cell.kind,family,hintColors[(cell.kind-1)%7]):null;
+     const hintTex=hintBlend>0?this.texture(cell.kind,family,HINT_COLORS[(cell.kind-1)%HINT_COLORS.length]):null;
      const left=(point.x+.5)*base;
      const top=(point.y+.5)*base;
      this.drawPatch(tex,left,top,base*scale*stereoShrink*widthFactor,
@@ -177,7 +177,7 @@ export class Renderer {
    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=game.mode==='binary'?'#444':'#eee';
    ctx.font='26px sans-serif';ctx.fillText('ゲーム終了',game.controlX/2,140);
    ctx.font='bold 72px system-ui';ctx.fillText(String(Math.floor(game.score)),game.controlX/2,240);
-   ctx.font='20px sans-serif';ctx.fillText(`BEST ${game.best}`,game.controlX/2,300);
+   ctx.font='20px sans-serif';ctx.fillText(`最高記録 ${game.best}`,game.controlX/2,300);
    ctx.strokeStyle='currentColor';ctx.lineWidth=2;ctx.strokeRect(game.controlX/2-110,355,220,64);
    ctx.font='22px sans-serif';ctx.fillText('もう一度',game.controlX/2,387);
    ctx.restore();

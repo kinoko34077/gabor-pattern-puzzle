@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "A Gabor-pattern match-three browser puzzle with offline PWA support",
+  "description": "ガボール模様を使ったオフライン対応のマッチ3パズル",
   "scripts": {
     "build": "tsc",
     "bundle": "node build.cjs",
@@ -11,5 +11,7 @@
     "check": "npm run build && npm test && npm run bundle",
     "serve": "python3 -m http.server 8000"
   },
-  "devDependencies": {"typescript": "^5.9.3"}
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
 }
