@@ -36,3 +36,12 @@ jobs:
         env:
           HEAD_SHA: ${{ github.sha }}
         run: git diff --check "$HEAD_SHA^" "$HEAD_SHA"
+      - name: Node.jsを設定
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: 依存パッケージを再現可能な形で導入
+        run: npm ci
+      - name: TypeScriptビルド・単体テスト・バンドルを検証
+        run: npm run check
