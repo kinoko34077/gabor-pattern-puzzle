@@ -26,6 +26,8 @@ test('縦画面は下端へ位置だけ移し、文字やダイアログを正�
  assert.doesNotMatch(portrait,/rotate\s*\(/);
  assert.doesNotMatch(portrait,/#game\s*\{[^}]*transform\s*:/);
  assert.doesNotMatch(portrait,/dialog\s*\{[^}]*transform\s*:/);
- assert.match(portrait,/dialog\s*\{[^}]*max-height:calc\(100dvh - 24px\)/);
- assert.match(portrait,/#theme-toast\s*\{[^}]*translate\(-50%,-50%\)/);
+ assert.doesNotMatch(portrait,/#theme-toast\\s*\\{[^}]*translate\\(-50%,-50%\\)/);
+ assert.doesNotMatch(portrait,/dialog\\s*\\{/);
+ assert.match(html,/<aside id="settings" class="settings-popover" role="region"/);
+ assert.doesNotMatch(html,/<dialog|::backdrop|backdrop-filter\\s*:/);
 });
