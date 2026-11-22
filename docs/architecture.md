@@ -9,7 +9,9 @@
 - `src/palette.ts`：テーマの色定義、カテゴリー色の割当と色の入力検証。
 - `src/gabor.ts`：周波数・位相・明度・ガウス減衰から独立生成するガボールパッチ。数学的定数と外周の減衰曲線は維持。
 - `src/render.ts`：可変サイズCanvasへの描画・高解像度テクスチャの再利用・視認できる輪郭ぼかしの連続変化。テクスチャcacheは無制限に蓄積しない。
-- `src/main.ts`：Pointer/Keyboard入力、HTMLツールバー・非モーダル設定ポップアップ（設定ボタン基準で配置）・明示一時停止/待機復帰、CSS向き変更・Canvas再設定、HUD更新。
+- `src/viewport.ts`：画面向き・visualViewport・四辺safe-area・Canvas描画領域の同期とポップアップ位置を一元管理。
+- `src/settings.ts`：設定パネルの開閉・設定値・手動停止／自動停止の区別・待機復帰、キーボードフォーカスを管理。
+- `src/main.ts`：Game/Renderer/UI制御の合成入口、Pointer/Keyboard入力、HUDと操作欄の通知。
 
 ## 画面適応
 
