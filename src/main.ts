@@ -18,7 +18,7 @@ const themeToast=el<HTMLOutputElement>('theme-toast');
 const paletteButton=el<HTMLButtonElement>('palette-button');
 const settingsButton=el<HTMLButtonElement>('settings-button');
 const hintButton=el<HTMLButtonElement>('hint-button');
-const score=el<HTMLElement>('score');
+const scoreValue=el<HTMLElement>('score-value');
 const clock=el<HTMLElement>('clock');
 const finished=el<HTMLElement>('finished');
 const finalScore=el<HTMLElement>('final-score');
@@ -65,7 +65,7 @@ function syncControls():void {
 }
 function refreshHud():void {
  const points=String(Math.floor(game.score));
- if(score.textContent!==points)score.textContent=points;
+ if(scoreValue.textContent!==points)scoreValue.textContent=points;
  const t=game.phase==='ready'?game.roundSeconds:game.time;
  const timeString=Math.max(0,t).toFixed(1)+'秒';
  if(clock.textContent!==timeString)clock.textContent=timeString;
