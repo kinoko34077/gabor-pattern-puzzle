@@ -9,12 +9,13 @@ function el<T extends HTMLElement>(id:string):T{
 const canvas=el<HTMLCanvasElement>('game');
 const stage=el<HTMLElement>('stage');
 const game=new Game(),renderer=new Renderer(canvas);
-const settings=el<HTMLDialogElement>('settings');
+const settings=el<HTMLElement>('settings');
 const modeButton=el<HTMLButtonElement>('mode-button');
 const toolbar=el<HTMLElement>('toolbar');
 const plusButton=el<HTMLButtonElement>('plus-button');
 const minusButton=el<HTMLButtonElement>('minus-button');
 const themeToast=el<HTMLOutputElement>('theme-toast');
+const pauseIndicator=el<HTMLOutputElement>('pause-indicator');
 const paletteButton=el<HTMLButtonElement>('palette-button');
 const settingsButton=el<HTMLButtonElement>('settings-button');
 const hintButton=el<HTMLButtonElement>('hint-button');
@@ -33,8 +34,10 @@ const speedInput=el<HTMLInputElement>('speed');
 const densityValue=el<HTMLElement>('density-value');
 const speedValue=el<HTMLElement>('speed-value');
 const resetBackground=el<HTMLButtonElement>('reset-background');
-const randomPalette=el<HTMLButtonElement>('random-palette');
-const closeSettings=el<HTMLButtonElement>('close-settings');
+const pauseButton=el<HTMLButtonElement>('pause-button');
+const endGameButton=el<HTMLButtonElement>('end-game-button');
+const closeSettingsButton=el<HTMLButtonElement>('close-settings');
+let manuallyPaused=false;
 
 for(const option of PALETTE_OPTIONS){
  const item=document.createElement('option');item.value=option.id;item.textContent=option.label;themeSelect.add(item);
@@ -87,6 +90,10 @@ function refreshHud():void {
      toolbar.style.color=(r*.2126+g*.7152+b*.0722)>151?'#353b49':'#eeeeee';
    }
  }
+ pauseIndicator.hidden=!manuallyPaused;
+ pauseButton.textContent=manuallyPaused?'再開':'一時停止';
+ pauseButton.disabled=!manuallyPaused&&!game.isPlaying;
+ pauseButton.setAttribute('aria-pressed',String(manuallyPaused));
  finished.hidden=game.phase!=='over';
  if(game.phase==='over'){
    finalScore.textContent=String(Math.floor(game.score));
@@ -110,7 +117,7 @@ function pointFrom(ev:PointerEvent):Point {
 }
 let startPoint:Point|null=null,activeId:number|null=null;
 canvas.addEventListener('pointerdown',ev=>{
- if(game.phase==='over'||settings.open)return;
+ if(game.phase==='over'||game.paused||!settings.hidden)return;
  if(ev.button!==0&&ev.pointerType==='mouse')return;
  ev.preventDefault();
  canvas.setPointerCapture(ev.pointerId);activeId=ev.pointerId;
@@ -118,7 +125,7 @@ canvas.addEventListener('pointerdown',ev=>{
  startPoint=p.x>=0&&p.x<game.cols&&p.y>=0&&p.y<game.rows&&!game.isBusy?p:null;
 });
 canvas.addEventListener('pointermove',ev=>{
- if(!startPoint||activeId!==ev.pointerId||ev.pointerType==='mouse'&&!ev.buttons)return;
+ if(!startPoint||game.paused||activeId!==ev.pointerId||ev.pointerType==='mouse'&&!ev.buttons)return;
  const p=pointFrom(ev),origin=startPoint;
  if(origin.x===p.x&&origin.y===p.y)return;
  const target=Math.abs(p.x-origin.x)>=Math.abs(p.y-origin.y)
@@ -141,7 +148,7 @@ canvas.addEventListener('keydown',ev=>{
    else focus={x:Math.max(0,Math.min(game.cols-1,focus.x+d.x)),y:Math.max(0,Math.min(game.rows-1,focus.y+d.y))};
    ev.preventDefault();
  }else if(ev.key==='h'||ev.key==='H'){game.hint();ev.preventDefault()}
- else if(ev.key==='s'||ev.key==='S'){openSettings();ev.preventDefault()}
+ else if(ev.key==='s'||ev.key==='S'){toggleSettings();ev.preventDefault()}
  else if(game.phase==='over'&&(ev.key==='Enter'||ev.key===' ')){game.restart();ev.preventDefault()}
 });
 
@@ -151,19 +158,70 @@ let toastTimer:ReturnType<typeof setTimeout>;
 function cycleVisibleTheme():void {
  const value=game.cycleTheme();syncControls();refreshHud();
  const label=PALETTE_OPTIONS.find(p=>p.id===value)!.label;
- themeToast.textContent='デザイン：'+label;themeToast.hidden=false;
+ themeToast.textContent='配色：'+label;themeToast.hidden=false;
  clearTimeout(toastTimer);
- toastTimer=setTimeout(()=>{themeToast.hidden=true},1400);
+ toastTimer=setTimeout(()=>{themeToast.hidden=true},1100);
 }
 paletteButton.addEventListener('click',cycleVisibleTheme);
 plusButton.addEventListener('click',()=>{game.setDensity(game.densityRows-1);syncControls();scheduleLayout()});
 minusButton.addEventListener('click',()=>{game.setDensity(game.densityRows+1);syncControls();scheduleLayout()});
 restartButton.addEventListener('click',()=>{game.restart();refreshHud()});
-function openSettings():void{syncControls();game.paused=true;startPoint=null;settings.showModal()}
-settingsButton.addEventListener('click',openSettings);
-closeSettings.addEventListener('click',()=>settings.close());
-settings.addEventListener('close',()=>{game.paused=false;canvas.focus({preventScroll:true})});
-settings.addEventListener('cancel',()=>{game.paused=false});
+function syncPause():void {
+ // 設定中は従来どおり時間と得点のみ一時停止する。明示停止は閉じた後も維持。
+ game.paused=manuallyPaused||!settings.hidden;
+ refreshHud();
+}
+function placeSettings():void {
+ if(settings.hidden)return;
+ const button=settingsButton.getBoundingClientRect();
+ const popup=settings.getBoundingClientRect();
+ const margin=8;
+ const clamp=(x:number,min:number,max:number)=>Math.max(min,Math.min(max,x));
+ const vertical=window.matchMedia('(orientation: portrait)').matches;
+ const left=vertical?button.right-popup.width:button.left-popup.width-8;
+ const top=vertical?button.top-popup.height-8:button.top;
+ settings.style.left=clamp(left,margin,Math.max(margin,window.innerWidth-popup.width-margin))+'px';
+ settings.style.top=clamp(top,margin,Math.max(margin,window.innerHeight-popup.height-margin))+'px';
+}
+function openSettings():void {
+ if(!settings.hidden)return;
+ syncControls();startPoint=null;activeId=null;
+ settings.hidden=false;
+ settingsButton.setAttribute('aria-expanded','true');
+ syncPause();placeSettings();
+}
+function closeSettings():void {
+ if(settings.hidden)return;
+ settings.hidden=true;
+ settingsButton.setAttribute('aria-expanded','false');
+ syncPause();
+}
+function toggleSettings():void {
+ if(settings.hidden)openSettings();
+ else closeSettings();
+}
+settingsButton.addEventListener('click',toggleSettings);
+closeSettingsButton.addEventListener('click',closeSettings);
+pauseButton.addEventListener('click',()=>{
+ if(!manuallyPaused&&!game.isPlaying)return;
+ manuallyPaused=!manuallyPaused;
+ closeSettings();syncPause();
+});
+endGameButton.addEventListener('click',()=>{
+ manuallyPaused=false;
+ game.restart();
+ closeSettings();syncPause();refreshHud();
+});
+document.addEventListener('pointerdown',ev=>{
+ const target=ev.target as Node;
+ if(!settings.hidden&&!settings.contains(target)&&!settingsButton.contains(target)){
+   closeSettings();
+ }
+});
+window.addEventListener('keydown',ev=>{
+ if(ev.key==='Escape'&&!settings.hidden){closeSettings();ev.preventDefault()}
+});
+window.addEventListener('resize',placeSettings);
 durationSelect.addEventListener('change',()=>game.setDuration(Number(durationSelect.value)));
 themeSelect.addEventListener('change',()=>{game.setTheme(themeSelect.value as PaletteName);backgroundInput.value=game.backgroundColor});
 backgroundInput.addEventListener('input',()=>game.setBackground(backgroundInput.value));
@@ -171,6 +229,5 @@ resetBackground.addEventListener('click',()=>{game.clearBackground();backgroundI
 patchInput.addEventListener('input',()=>{game.setPatchColor(patchInput.value);themeSelect.value=game.theme});
 densityInput.addEventListener('input',()=>{game.setDensity(Number(densityInput.value));densityValue.textContent=String(game.densityRows);scheduleLayout()});
 speedInput.addEventListener('input',()=>{game.setVisualSpeed(Number(speedInput.value));speedValue.textContent=game.visualSpeed.toFixed(2)+'倍'});
-randomPalette.addEventListener('click',cycleVisibleTheme);
 syncControls();
 Object.defineProperty(window,'__gaborPuzzleDev',{value:{game,renderer},configurable:false});
