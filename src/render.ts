@@ -4,12 +4,13 @@ import {generatePatch,type PatchFamily} from './gabor.js';
 const TAU=Math.PI*2;
 const clamp=(n:number,l=0,h=1)=>Math.min(h,Math.max(l,n));
 const ease=(t:number)=>{const x=clamp(t);return x*x*(3-2*x)};
+type PatchTexture={base:HTMLCanvasElement;soft:HTMLCanvasElement};
 
 /** 画面全体に描画し、物理ピクセル密度の上限でメモリ消費を抑える。 */
 export class Renderer {
  private readonly canvas:HTMLCanvasElement;
  private readonly ctx:CanvasRenderingContext2D;
- private readonly textures=new Map<string,HTMLCanvasElement>();
+ private readonly textures=new Map<string,PatchTexture>();
  private density=1;
  private width=0;
  private height=0;
@@ -28,10 +29,10 @@ export class Renderer {
    this.width=width;this.height=height;
    this.density=density;
  }
- private texture(kind:number,family:PatchFamily,color:ColorSpec):HTMLCanvasElement {
+ private texture(kind:number,family:PatchFamily,color:ColorSpec):PatchTexture {
    const key=`${kind}/${family}/${color.r}/${color.g}/${color.b}`;
    const cached=this.textures.get(key);if(cached)return cached;
-   if(this.textures.size>110)this.textures.clear();
+   if(this.textures.size>48)this.textures.clear();
    const data=generatePatch(kind,family,256),bytes=data.data;
    if(color.r!==255||color.g!==255||color.b!==255){
      for(let i=0;i<bytes.length;i+=4){
@@ -42,7 +43,12 @@ export class Renderer {
    }
    const cv=document.createElement('canvas');cv.width=cv.height=256;
    const cx=cv.getContext('2d');if(!cx)throw Error('画像生成用Canvasを利用できません');
-   cx.putImageData(data,0,0);this.textures.set(key,cv);return cv;
+   cx.putImageData(data,0,0);
+   // ぼかし済みの画像を一度だけ生成し、描画中は2枚の合成比率のみ変化させる。
+   const soft=document.createElement('canvas');soft.width=soft.height=256;
+   const sx=soft.getContext('2d');if(!sx)throw Error('ぼかし画像用Canvasを利用できません');
+   sx.filter='blur(2px)';sx.drawImage(cv,0,0);sx.filter='none';
+   const result={base:cv,soft};this.textures.set(key,result);return result;
  }
  private offset(cell:Cell,point:Point,now:number):Point{
    const m=cell.motion;if(!m)return point;
@@ -73,7 +79,7 @@ export class Renderer {
      const tint=game.kindColor(cell.kind);
      const tex=this.texture(cell.kind,family,tint);
      const x0=game.originX+(point.x+.5)*base,y0=game.originY+(point.y+.5)*base;
-     const blur=0.15+0.9*(.5+.5*Math.sin(game.visualNow/2400*game.visualSpeed+cell.kind*.7));
+     const blur=.5+.5*Math.sin(game.visualNow/2400*game.visualSpeed+cell.kind*.7);
      const hintTex=hintBlend>0?this.texture(cell.kind,family,{r:255,g:242,b:173,a:255}):null;
      if(game.mode==='stereo'){ctx.save();ctx.beginPath();ctx.rect(0,0,game.halfWidth,game.height);ctx.clip()}
      this.drawPatch(tex,x0,y0,base*scale*stereoShrink*wx,base*scale*stereoShrink*wy,cell.angle,tint.a/255,blur);
@@ -90,11 +96,12 @@ export class Renderer {
    this.drawTimeBar(game);
    if(game.mode==='stereo')this.drawStereoMarks(game);
  }
- private drawPatch(tex:HTMLCanvasElement,x:number,y:number,w:number,h:number,rotation:number,alpha:number,blur:number):void {
+ private drawPatch(tex:PatchTexture,x:number,y:number,w:number,h:number,rotation:number,alpha:number,blur:number):void {
    const ctx=this.ctx;ctx.save();ctx.translate(x,y);ctx.rotate(rotation*Math.PI/180);
    ctx.globalAlpha=alpha;ctx.imageSmoothingEnabled=true;
-   ctx.filter=`blur(${blur.toFixed(2)}px)`;
-   ctx.drawImage(tex,-w/2,-h/2,w,h);ctx.restore();
+   ctx.drawImage(tex.base,-w/2,-h/2,w,h);
+   if(blur>0.01){ctx.globalAlpha=alpha*blur;ctx.drawImage(tex.soft,-w/2,-h/2,w,h)}
+   ctx.restore();
  }
  private drawTimeBar(game:Game):void{
    if(game.phase==='ready'||game.phase==='over')return;
