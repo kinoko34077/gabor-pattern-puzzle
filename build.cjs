@@ -1,7 +1,7 @@
 const fs=require('fs');
 const path=require('path');
 const ts=require('typescript');
-const modules=['gabor','game','render','main'];
+const modules=['gabor','palette','layout','game','render','main'];
 let code=`/* TypeScriptから生成したブラウザ用パズル実行コード */\n(()=>{\n'use strict';\nconst __modules=Object.create(null),__cache=Object.create(null);\nfunction require(id){const name=id.replace(/^\\.\\//,'').replace(/\\.js$/,'');if(!__modules[name])throw Error('モジュールが見つかりません: '+id);if(__cache[name])return __cache[name].exports;const module={exports:{}};__cache[name]=module;__modules[name](require,module,module.exports);return module.exports;}\n`;
 for(const name of modules){
   const source=fs.readFileSync(path.join(__dirname,'src',name+'.ts'),'utf8');

@@ -1,4 +1,6 @@
 /** ゲーム規則・時間軸・保存処理。CanvasやDOM描画には依存しない。 */
+import {fitBoard} from './layout.js';
+import {PALETTES,PALETTE_OPTIONS,paletteColor,isHexColor,type PaletteName} from './palette.js';
 export type Mode = 'gabor' | 'binary' | 'stereo';
 export type Special = 'none' | 'horizontal' | 'vertical' | 'bomb' | 'checker';
 export interface Point { x:number; y:number; }
@@ -6,7 +8,7 @@ export interface Motion {from:Point; to:Point; start:number; duration:number; bo
 export interface Cell { id:number; kind:number; special:Special; angle:number; rate:number; motion?:Motion; disappearing?:number; pulse?:number; tint?:string; }
 interface Match {cells:Point[];axis:'x'|'y';type:number;}
 interface Scheduled {at:number;action:()=>void;}
-export interface Saved {rows:number;color:number;mode:Mode;best:number;totalSeconds:number;lastDay:string;}
+export interface Saved {rows:number;color:number;mode:Mode;best:number;totalSeconds:number;lastDay:string;duration:number;theme:PaletteName;background:string;patch:string;density:number;speed:number;paletteShift:number;}
 export type ColorSpec={r:number;g:number;b:number;a:number};
 export const COLORS:ColorSpec[]=[
  {r:255,g:255,b:255,a:255},{r:255,g:255,b:255,a:128},
@@ -24,27 +26,45 @@ const clamp=(n:number,l:number,h:number)=>Math.min(h,Math.max(l,n));
 const same=(a:Point,b:Point)=>a.x===b.x&&a.y===b.y;
 const num=(n:unknown,f:number)=>typeof n==='number'&&Number.isFinite(n)?n:f;
 const MODE_LIST:Mode[]=['gabor','binary','stereo'];
+const DURATIONS=[30,60,90,120,180] as const;
+const THEME_NAMES=PALETTE_OPTIONS.map(p=>p.id);
 const today=()=>{const d=new Date();return `${d.getMonth()+1}/${d.getDate()}`};
 export function loadSaved():Saved {
- const defaults:Saved={rows:6,color:0,mode:'gabor',best:0,totalSeconds:0,lastDay:today()};
+ const defaults:Saved={rows:6,color:0,mode:'gabor',best:0,totalSeconds:0,lastDay:today(),
+   duration:60,theme:'set2',background:'',patch:'#49bfae',density:6,speed:1,paletteShift:0};
  try {
   const val=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}') as Partial<Saved>;
+  const legacy=typeof val.theme!=='string'&&Object.keys(val).length>0;
   return {rows:clamp(Math.round(num(val.rows,6)),5,16),color:clamp(Math.round(num(val.color,0)),0,6),
     mode:MODE_LIST.includes(val.mode as Mode)?val.mode!:defaults.mode,
-    best:num(val.best,0),totalSeconds:num(val.totalSeconds,0),lastDay:val.lastDay||defaults.lastDay};
+    best:num(val.best,0),totalSeconds:num(val.totalSeconds,0),lastDay:val.lastDay||defaults.lastDay,
+    duration:DURATIONS.includes(val.duration as typeof DURATIONS[number])?val.duration!:60,
+    theme:THEME_NAMES.includes(val.theme as PaletteName)?val.theme!:legacy?'classic':'set2',
+    background:isHexColor(val.background)?val.background:'',
+    patch:isHexColor(val.patch)?val.patch:'#49bfae',
+    density:clamp(Math.round(num(val.density,num(val.rows,6))),4,10),
+    speed:clamp(num(val.speed,1),0.25,2),
+    paletteShift:clamp(Math.round(num(val.paletteShift,0)),0,6)};
+
  }catch{return defaults}
 }
 export function saveGame(game:Game):void {
- const data:Saved={rows:game.rows,color:game.colorIndex,mode:game.mode,
-   best:game.best,totalSeconds:game.totalSeconds,lastDay:game.lastDay};
+ const data:Saved={rows:game.densityRows,color:game.colorIndex,mode:game.mode,
+   best:game.best,totalSeconds:game.totalSeconds,lastDay:game.lastDay,
+   duration:game.initialSeconds,theme:game.theme,background:game.backgroundOverride,
+   patch:game.patchOverride,density:game.densityRows,speed:game.visualSpeed,
+   paletteShift:game.paletteShift};
  try{localStorage.setItem(STORAGE_KEY,JSON.stringify(data))}catch{/* 保存領域が利用できない場合はゲーム進行を優先する */}
 }
 export interface Event { kind:'swap'|'match'|'fall'|'reset'|'gameover'|'hint'; time:number;value?:number; }
 
 /** 盤面座標は上から下へ数え、描画スケールには依存しない。 */
 export class Game {
- readonly width=DESIGN.width;
- readonly height=DESIGN.height;
+ width:number=DESIGN.width;
+ height:number=DESIGN.height;
+ viewportSized=false;originX=0;originY=0;densityRows=6;
+ initialSeconds=60;roundSeconds=60;visualSpeed=1;visualNow=0;paused=false;theme:PaletteName='set2';
+ backgroundOverride='';patchOverride='#49bfae';paletteShift=0;
  readonly controlWidth=DESIGN.controlsWidth;
  rows=6; cols=9;tile=90;
  mode:Mode='gabor';colorIndex=0;
@@ -56,7 +76,6 @@ export class Game {
  startedAt:number|null=null;
  hintCount=0;
  active:Point|null=null;
- muted=false;
  hintTintStart:number|null=null;
  eventLog:Event[]=[];
  private nextId=1;
@@ -75,18 +94,43 @@ export class Game {
    this.random=random;
    const v=saved??loadSaved();
    this.rows=clamp(num(v.rows,6),5,16);
+   this.densityRows=clamp(num(v.density??v.rows,6),4,10);
+   this.initialSeconds=DURATIONS.includes(v.duration as typeof DURATIONS[number])?v.duration!:60;
+   this.roundSeconds=this.initialSeconds;
+   this.visualSpeed=clamp(num(v.speed,1),0.25,2);
+   this.theme=THEME_NAMES.includes(v.theme as PaletteName)?v.theme!:'set2';
+   this.backgroundOverride=isHexColor(v.background)?v.background:'';
+   this.patchOverride=isHexColor(v.patch)?v.patch:'#49bfae';
+   this.paletteShift=clamp(Math.round(num(v.paletteShift,0)),0,6);
    this.colorIndex=clamp(num(v.color,0),0,6);
    this.mode=MODE_LIST.includes(v.mode as Mode)?v.mode!:'gabor';
    this.best=num(v.best,0);this.totalSeconds=num(v.totalSeconds,0);
    this.lastDay=v.lastDay||today();this.restart(false);
  }
  get color():ColorSpec{return COLORS[this.colorIndex]}
+ kindColor(kind:number):ColorSpec{return this.theme==='classic'?this.color:paletteColor(this.theme,kind,this.paletteShift,this.patchOverride)}
+ get backgroundColor():string {return this.backgroundOverride||(
+   this.theme==='custom'?'#f1f3f6':this.theme==='classic'?(this.mode==='binary'?'#ffffff':'#808080'):PALETTES[this.theme].background)}
+ setTheme(theme:PaletteName):void {if(!THEME_NAMES.includes(theme))return;this.theme=theme;saveGame(this)}
+ setBackground(hex:string):void {if(!isHexColor(hex))return;this.backgroundOverride=hex;saveGame(this)}
+ clearBackground():void {this.backgroundOverride='';saveGame(this)}
+ setPatchColor(hex:string):void {if(!isHexColor(hex))return;this.patchOverride=hex;this.theme='custom';saveGame(this)}
+ randomizePalette():void {this.paletteShift=(this.paletteShift+1+Math.floor(this.random()*6))%7;if(this.theme==='classic'||this.theme==='custom')this.theme='set2';saveGame(this)}
+ setDuration(sec:number):void {
+   if(!DURATIONS.includes(sec as typeof DURATIONS[number]))return;
+   this.initialSeconds=sec;
+   // 開始前は即反映。進行中・終了後は次回restartまで現在の制限時間を保持する。
+   if(this.phase==='ready'){this.roundSeconds=sec;this.time=sec}
+   saveGame(this)
+ }
+ setVisualSpeed(speed:number):void {this.visualSpeed=clamp(num(speed,1),0.25,2);saveGame(this)}
+ setDensity(value:number):void {this.densityRows=clamp(Math.round(value),4,10);if(this.viewportSized)this.resizeViewport(this.width,this.height,true);else this.setRows(this.densityRows-this.rows);saveGame(this)}
  get isBusy():boolean{return this.busy}
  get boardWidth():number{return this.cols*this.tile}
- get controlX():number{return DESIGN.width-DESIGN.controlsWidth}
+ get controlX():number{return this.viewportSized?this.width:DESIGN.width-DESIGN.controlsWidth}
  get halfWidth():number{return this.controlX/2}
  get isPlaying():boolean{return this.startedAt!==null&&this.phase!=='over'}
- get timeBarHeight():number{return DESIGN.height/120*clamp(this.time,0,120)}
+ get timeBarHeight():number{return this.height/this.roundSeconds*clamp(this.time,0,this.roundSeconds)}
  private emit(kind:Event['kind'],value?:number){this.eventLog.push({kind,time:this.now,value});if(this.eventLog.length>64)this.eventLog.shift()}
  private schedule(delay:number,action:()=>void){
    const task={at:this.now+Math.max(0,delay),action};
@@ -100,10 +144,17 @@ export class Game {
  }
  restart(persist=true):void {
    this.tasks=[];this.busy=false;this.phase='ready';this.phaseAge=0;this.startedAt=null;
-   this.score=0;this.time=DESIGN.initialSeconds;this.hintCount=0;this.active=null;
-   this.rows=Math.round(clamp(this.rows,5,16));
-   this.tile=Math.floor(DESIGN.height/this.rows);
-   this.cols=Math.floor((this.mode==='stereo'?.5:1)*this.controlX/this.tile);
+   this.roundSeconds=this.initialSeconds;
+   this.score=0;this.time=this.roundSeconds;this.hintCount=0;this.active=null;
+   if(this.viewportSized){
+     const v=fitBoard(this.width,this.height,this.densityRows,this.mode==='stereo');
+     this.rows=v.rows;this.cols=v.cols;this.tile=v.tile;this.originX=v.originX;this.originY=v.originY;
+   }else{
+     this.rows=Math.round(clamp(this.rows,5,16));
+     this.tile=Math.floor(DESIGN.height/this.rows);
+     this.cols=Math.floor((this.mode==='stereo'?.5:1)*this.controlX/this.tile);
+     this.originX=0;this.originY=0;
+   }
    if(this.mode!=='binary')this.family=(this.family==='sharp'&&this.random()<.2)?'normal':'sharp';
    this.board=[];
    for(let y=0;y<this.rows;y++){
@@ -124,9 +175,39 @@ export class Game {
    this.setRotationSequence();
    this.emit('reset');if(persist)saveGame(this);
  }
- setRows(n:number){if(this.busy)return;this.rows=clamp(this.rows+n,5,16);this.restart()}
+ setRows(n:number){if(this.busy)return;
+   if(this.viewportSized){this.setDensity(this.densityRows+n);return}
+   this.rows=clamp(this.rows+n,5,16);this.densityRows=this.rows;this.restart()
+ }
+ /** 画面回転時も進捗を保持し、盤面の重複領域を維持して周辺のみ補充する。 */
+ resizeViewport(width:number,height:number,force=false):boolean {
+   if(this.busy)return false;
+   const w=Math.max(160,Math.round(width)),h=Math.max(160,Math.round(height));
+    const layout=fitBoard(w,h,this.densityRows,this.mode==='stereo');
+   const old=this.board,oldRows=this.rows,oldCols=this.cols;
+   this.width=w;this.height=h;this.viewportSized=true;
+   this.tile=layout.tile;this.rows=layout.rows;this.cols=layout.cols;
+   this.originX=layout.originX;this.originY=layout.originY;
+   if(!old.length){this.restart();return true}
+   if(oldRows===this.rows&&oldCols===this.cols)return true;
+   const dx=Math.floor((this.cols-oldCols)/2),dy=Math.floor((this.rows-oldRows)/2);
+   const board:Cell[][]=[];
+   for(let y=0;y<this.rows;y++){
+     const row:Cell[]=[];
+     for(let x=0;x<this.cols;x++){
+       let cell=old[y-dy]?.[x-dx]??this.makeCell();
+       let tries=0;
+       while(tries++<30&&((x>=2&&row[x-1].kind===cell.kind&&row[x-2].kind===cell.kind)||
+         (y>=2&&board[y-1][x].kind===cell.kind&&board[y-2][x].kind===cell.kind)))cell=this.makeCell();
+       cell.motion=undefined;cell.disappearing=undefined;row.push(cell);
+     }
+     board.push(row);
+   }
+   this.board=board;
+   if(!this.findPossibleSwap())this.shuffle();
+   return true;
+ }
  cycleMode(){if(this.busy)return;this.mode=MODE_LIST[(MODE_LIST.indexOf(this.mode)+1)%3];this.restart()}
- toggleMute(){this.muted=!this.muted}
  cycleColor(){this.colorIndex=(this.colorIndex+1)%COLORS.length;this.emit('hint');saveGame(this)}
  private at(p:Point):Cell|null{return this.board[p.y]?.[p.x]??null}
  private inside(p:Point):boolean{return p.x>=0&&p.x<this.cols&&p.y>=0&&p.y<this.rows}
@@ -335,20 +416,23 @@ export class Game {
  }
  tick(dtSeconds:number):void {
    const dt=clamp(dtSeconds,0,.12);
-   this.now+=dt*1000;
-   this.phaseAge+=dt;
-   if(this.isPlaying){this.time=clamp(this.time,0,120)-dt;this.score+=dt;
-     if(this.time<=0){this.time=0;this.endGame();return}}
-   // 同時刻の登録順を維持したまま、実行期限を過ぎた処理を順次実行する。
-   while(this.tasks.length&&this.tasks[0].at<=this.now){const task=this.tasks.shift()!;task.action()}
-   this.rotationAge+=dt;
-   for(const row of this.board)for(const cell of row)if(cell)cell.angle+=cell.rate*dt;
+   this.visualNow+=dt*1000;
+   // 設定を開いている間はゲームの時計を止め、模様の視覚変化だけ継続する。
+   if(!this.paused){
+     this.now+=dt*1000;this.phaseAge+=dt;
+     if(this.isPlaying){this.time=clamp(this.time,0,Math.max(120,this.roundSeconds))-dt;this.score+=dt;
+       if(this.time<=0){this.time=0;this.endGame()}}
+     while(this.tasks.length&&this.tasks[0].at<=this.now){const task=this.tasks.shift()!;task.action()}
+   }
+   const visualDt=dt*this.visualSpeed;
+   this.rotationAge+=visualDt;
+   for(const row of this.board)for(const cell of row)if(cell)cell.angle+=cell.rate*visualDt;
    if(this.rotationAge>=this.rotationDuration){this.rotationAge=0;this.setRotationSequence()}
  }
  /** 描画に依存せず再現可能な盤面を設定するテスト用入口。 */
  loadBoard(matrix:number[][]){
    if(matrix.length!==this.rows||matrix.some(row=>row.length!==this.cols))throw new Error('盤面の行数・列数が一致しません');
    this.board=matrix.map(row=>row.map(kind=>this.makeCell(kind)));
-   this.tasks=[];this.busy=false;this.phase='ready';this.startedAt=null;this.time=60;this.score=0;
+   this.tasks=[];this.busy=false;this.phase='ready';this.startedAt=null;this.roundSeconds=this.initialSeconds;this.time=this.roundSeconds;this.score=0;
  }
 }

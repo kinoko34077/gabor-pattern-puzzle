@@ -12,7 +12,7 @@ test('PWAの設定・スコープ・オフライン構成が自己完結する',
   assert.equal(manifest.icons.filter(i=>i.purpose==='maskable').length,2);
   for(const icon of manifest.icons)assert.ok(fs.statSync(path.join(root,icon.src)).size>100);
   const sw=read('service-worker.js');
-  for(const file of ['index.html','manifest.webmanifest','dist/main.js','dist/game.js','dist/gabor.js','dist/render.js']){
+  for(const file of ['index.html','manifest.webmanifest','dist/main.js','dist/game.js','dist/gabor.js','dist/render.js','dist/layout.js','dist/palette.js']){
     assert.ok(sw.includes(file),`Missing offline asset ${file}`);
     assert.ok(fs.existsSync(path.join(root,file)));
   }
@@ -20,6 +20,6 @@ test('PWAの設定・スコープ・オフライン構成が自己完結する',
   const html=read('index.html');
   assert.ok(html.includes('manifest.webmanifest'));
   assert.ok(html.includes('<title>ガボールパターンパズル</title>'));
-  assert.ok(html.includes("serviceWorker.register('./service-worker.js', {scope:'./'})"));
+  assert.match(html,/serviceWorker\.register\(\s*'\.\/service-worker\.js'\s*,\s*\{\s*scope\s*:\s*'\.\/'\s*\}\s*\)/);
   assert.ok(html.includes('src="./dist/main.js"'));
 });

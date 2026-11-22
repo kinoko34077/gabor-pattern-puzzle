@@ -1,73 +1,150 @@
-import {Game,DESIGN,type Point} from './game.js';
+import {Game,type Point} from './game.js';
 import {Renderer} from './render.js';
-const canvas=document.getElementById('game') as HTMLCanvasElement|null;
-if(!canvas)throw new Error('ゲーム用Canvasが見つかりません');
-const game=new Game();
-const renderer=new Renderer(canvas);
-let last=performance.now();
-function run(now:number){const dt=Math.min(.12,(now-last)/1000);last=now;game.tick(dt);renderer.render(game);requestAnimationFrame(run)}
-requestAnimationFrame(run);
-// ポインター座標を960×540の論理座標へ変換する。
-function pointFrom(ev:PointerEvent):Point & {px:number;py:number} {
- const r=canvas!.getBoundingClientRect();
- let px=(ev.clientX-r.x)/r.width*DESIGN.width;
- let py=(ev.clientY-r.y)/r.height*DESIGN.height;
- // 縦画面では表示のみを回転し、ゲームの論理座標系は変更しない。
- if(window.innerHeight>window.innerWidth && matchMedia('(max-width: 700px)').matches){
-   // 縦画面回転時のローカルXは画面下方向、Yは左方向へ進む。
-   const cx=(ev.clientX-window.innerWidth/2),cy=(ev.clientY-window.innerHeight/2);
-   px=(cy+canvas!.clientWidth/2)/canvas!.clientWidth*DESIGN.width;
-   py=(-cx+canvas!.clientHeight/2)/canvas!.clientHeight*DESIGN.height;
- }
- const boardX=game.mode==='stereo'&&px>=game.halfWidth&&px<game.controlX?px-game.halfWidth:px;
- return {px,py,x:Math.floor(boardX/game.tile),y:Math.floor(py/game.tile)};
+import {PALETTE_OPTIONS,type PaletteName} from './palette.js';
+
+function el<T extends HTMLElement>(id:string):T{
+ const node=document.getElementById(id);if(!node)throw new Error('UI要素が見つかりません: '+id);
+ return node as T;
 }
-let startPoint:Point|null=null;let activeId:number|null=null;
+const canvas=el<HTMLCanvasElement>('game');
+const stage=el<HTMLElement>('stage');
+const game=new Game(),renderer=new Renderer(canvas);
+const settings=el<HTMLDialogElement>('settings');
+const modeButton=el<HTMLButtonElement>('mode-button');
+const paletteButton=el<HTMLButtonElement>('palette-button');
+const settingsButton=el<HTMLButtonElement>('settings-button');
+const hintButton=el<HTMLButtonElement>('hint-button');
+const score=el<HTMLElement>('score');
+const clock=el<HTMLElement>('clock');
+const progress=el<HTMLProgressElement>('time-progress');
+const ready=el<HTMLElement>('ready-message');
+const finished=el<HTMLElement>('finished');
+const finalScore=el<HTMLElement>('final-score');
+const bestScore=el<HTMLElement>('best-score');
+const restartButton=el<HTMLButtonElement>('restart-button');
+const themeSelect=el<HTMLSelectElement>('theme');
+const durationSelect=el<HTMLSelectElement>('duration');
+const backgroundInput=el<HTMLInputElement>('background');
+const patchInput=el<HTMLInputElement>('patch');
+const densityInput=el<HTMLInputElement>('density');
+const speedInput=el<HTMLInputElement>('speed');
+const densityValue=el<HTMLElement>('density-value');
+const speedValue=el<HTMLElement>('speed-value');
+const resetBackground=el<HTMLButtonElement>('reset-background');
+const randomPalette=el<HTMLButtonElement>('random-palette');
+const closeSettings=el<HTMLButtonElement>('close-settings');
+
+for(const option of PALETTE_OPTIONS){
+ const item=document.createElement('option');item.value=option.id;item.textContent=option.label;themeSelect.add(item);
+}
+let last=performance.now(),needsLayout=true;
+function updateLayout():void {
+ const w=stage.clientWidth,h=stage.clientHeight;
+ if(w<10||h<10)return;
+ if(!game.resizeViewport(w,h)){needsLayout=true;return}
+ needsLayout=false;renderer.resize(game.width,game.height,window.devicePixelRatio||1);
+}
+function scheduleLayout():void {needsLayout=true;requestAnimationFrame(updateLayout)}
+new ResizeObserver(scheduleLayout).observe(stage);
+window.addEventListener('resize',scheduleLayout);
+window.addEventListener('orientationchange',scheduleLayout);
+updateLayout();
+
+const modeLabel={gabor:'ガボール',binary:'白黒',stereo:'立体視'} as const;
+function syncControls():void {
+ durationSelect.value=String(game.initialSeconds);
+ themeSelect.value=game.theme;
+ backgroundInput.value=game.backgroundColor;
+ patchInput.value=game.patchOverride;
+ densityInput.value=String(game.densityRows);
+ speedInput.value=String(game.visualSpeed);
+ densityValue.textContent=String(game.densityRows);
+ speedValue.textContent=game.visualSpeed.toFixed(2)+'倍';
+}
+function refreshHud():void {
+ const points=String(Math.floor(game.score));
+ if(score.textContent!==points)score.textContent=points;
+ const t=game.phase==='ready'?game.roundSeconds:game.time;
+ const timeString=Math.max(0,t).toFixed(1)+'秒';
+ if(clock.textContent!==timeString)clock.textContent=timeString;
+ progress.max=game.roundSeconds;progress.value=Math.max(0,Math.min(game.roundSeconds,t));
+ const modeText=modeLabel[game.mode];
+ if(modeButton.dataset.mode!==game.mode){modeButton.dataset.mode=game.mode;modeButton.setAttribute('aria-label','表示モード：'+modeText);modeButton.title='表示モード：'+modeText;}
+ ready.hidden=game.phase!=='ready';
+ finished.hidden=game.phase!=='over';
+ if(game.phase==='over'){
+   finalScore.textContent=String(Math.floor(game.score));
+   bestScore.textContent=String(game.best);
+ }
+}
+function run(now:number):void{
+ const dt=Math.min(.12,Math.max(0,(now-last)/1000));last=now;
+ if(needsLayout)updateLayout();
+ game.tick(dt);renderer.render(game);refreshHud();
+ requestAnimationFrame(run);
+}
+requestAnimationFrame(run);
+
+function pointFrom(ev:PointerEvent):Point {
+ const rect=canvas.getBoundingClientRect();
+ const px=(ev.clientX-rect.left)/rect.width*game.width;
+ const py=(ev.clientY-rect.top)/rect.height*game.height;
+ const x=game.mode==='stereo'&&px>=game.halfWidth?px-game.halfWidth:px;
+ return {x:Math.floor((x-game.originX)/game.tile),y:Math.floor((py-game.originY)/game.tile)};
+}
+let startPoint:Point|null=null,activeId:number|null=null;
 canvas.addEventListener('pointerdown',ev=>{
- ev.preventDefault();if(ev.button!==0&&ev.pointerType==='mouse')return;
+ if(game.phase==='over'||settings.open)return;
+ if(ev.button!==0&&ev.pointerType==='mouse')return;
+ ev.preventDefault();
  canvas.setPointerCapture(ev.pointerId);activeId=ev.pointerId;
  const p=pointFrom(ev);
- if(game.phase==='over'){
-   if(p.px<game.controlX){game.restart()};return;
- }
- if(p.px>=game.controlX){
-   const center=game.controlX+30,yy=p.py;
-   if(Math.abs(p.px-center)<39){
-     if(Math.abs(yy-35)<27)game.toggleMute();
-     else if(Math.abs(yy-80)<36)game.cycleMode();
-     else if(Math.abs(yy-165)<38)game.cycleColor();
-     else if(Math.abs(yy-250)<38)game.setRows(-1);
-     else if(Math.abs(yy-335)<38)game.setRows(+1);
-     else if(Math.abs(yy-420)<38)game.hint();
-   }
-   startPoint=null;return;
- }
- if(p.x>=0&&p.x<game.cols&&p.y>=0&&p.y<game.rows&&!game.isBusy)startPoint={x:p.x,y:p.y};
- else startPoint=null;
+ startPoint=p.x>=0&&p.x<game.cols&&p.y>=0&&p.y<game.rows&&!game.isBusy?p:null;
 });
 canvas.addEventListener('pointermove',ev=>{
- if(startPoint===null||activeId!==ev.pointerId||!ev.buttons&&ev.pointerType==='mouse')return;
- const p=pointFrom(ev);const old=startPoint;
- if(old.x===p.x&&old.y===p.y)return;
- const x=old.x+Math.sign(p.x-old.x),y=old.y+Math.sign(p.y-old.y);
- const target=p.x!==old.x?{x,y:old.y}:{x:old.x,y};
- game.swap(old,target);startPoint=null;
+ if(!startPoint||activeId!==ev.pointerId||ev.pointerType==='mouse'&&!ev.buttons)return;
+ const p=pointFrom(ev),origin=startPoint;
+ if(origin.x===p.x&&origin.y===p.y)return;
+ const target=Math.abs(p.x-origin.x)>=Math.abs(p.y-origin.y)
+   ?{x:origin.x+Math.sign(p.x-origin.x),y:origin.y}
+   :{x:origin.x,y:origin.y+Math.sign(p.y-origin.y)};
+ game.swap(origin,target);startPoint=null;
 });
-function clear(ev:PointerEvent){if(ev.pointerId===activeId){startPoint=null;activeId=null}}
-canvas.addEventListener('pointerup',clear);canvas.addEventListener('pointercancel',clear);
+function release(ev:PointerEvent):void{if(activeId===ev.pointerId){startPoint=null;activeId=null}}
+canvas.addEventListener('pointerup',release);canvas.addEventListener('pointercancel',release);
 canvas.addEventListener('contextmenu',ev=>ev.preventDefault());
-// ゲーム画面の寸法を変えずにキーボード操作を提供する。
+
 canvas.tabIndex=0;canvas.setAttribute('role','application');
-canvas.setAttribute('aria-label','ガボールパッチを上下左右にドラッグして三つ以上そろえるパズル');
+canvas.setAttribute('aria-label','ガボール模様を上下左右にドラッグして三つ以上そろえるパズル');
 let focus:Point={x:0,y:0};
 canvas.addEventListener('keydown',ev=>{
- if(game.phase==='over'&&(ev.key==='Enter'||ev.key===' ')){game.restart();ev.preventDefault();return}
  const delta:Record<string,Point>={ArrowLeft:{x:-1,y:0},ArrowRight:{x:1,y:0},ArrowUp:{x:0,y:-1},ArrowDown:{x:0,y:1}};
  if(ev.key in delta){
    const d=delta[ev.key];
-   if(ev.shiftKey){game.swap(focus,{x:focus.x+d.x,y:focus.y+d.y});}
+   if(ev.shiftKey)game.swap(focus,{x:focus.x+d.x,y:focus.y+d.y});
    else focus={x:Math.max(0,Math.min(game.cols-1,focus.x+d.x)),y:Math.max(0,Math.min(game.rows-1,focus.y+d.y))};
    ev.preventDefault();
  }else if(ev.key==='h'||ev.key==='H'){game.hint();ev.preventDefault()}
+ else if(ev.key==='s'||ev.key==='S'){openSettings();ev.preventDefault()}
+ else if(game.phase==='over'&&(ev.key==='Enter'||ev.key===' ')){game.restart();ev.preventDefault()}
 });
+
+modeButton.addEventListener('click',()=>{game.cycleMode();scheduleLayout();refreshHud()});
+hintButton.addEventListener('click',()=>game.hint());
+paletteButton.addEventListener('click',()=>{game.randomizePalette();syncControls()});
+restartButton.addEventListener('click',()=>{game.restart();refreshHud()});
+function openSettings():void{syncControls();game.paused=true;startPoint=null;settings.showModal()}
+settingsButton.addEventListener('click',openSettings);
+closeSettings.addEventListener('click',()=>settings.close());
+settings.addEventListener('close',()=>{game.paused=false;canvas.focus({preventScroll:true})});
+settings.addEventListener('cancel',()=>{game.paused=false});
+durationSelect.addEventListener('change',()=>game.setDuration(Number(durationSelect.value)));
+themeSelect.addEventListener('change',()=>{game.setTheme(themeSelect.value as PaletteName);backgroundInput.value=game.backgroundColor});
+backgroundInput.addEventListener('input',()=>game.setBackground(backgroundInput.value));
+resetBackground.addEventListener('click',()=>{game.clearBackground();backgroundInput.value=game.backgroundColor});
+patchInput.addEventListener('input',()=>{game.setPatchColor(patchInput.value);themeSelect.value=game.theme});
+densityInput.addEventListener('input',()=>{game.setDensity(Number(densityInput.value));densityValue.textContent=String(game.densityRows);scheduleLayout()});
+speedInput.addEventListener('input',()=>{game.setVisualSpeed(Number(speedInput.value));speedValue.textContent=game.visualSpeed.toFixed(2)+'倍'});
+randomPalette.addEventListener('click',()=>{game.randomizePalette();syncControls()});
+syncControls();
 Object.defineProperty(window,'__gaborPuzzleDev',{value:{game,renderer},configurable:false});

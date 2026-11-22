@@ -2,7 +2,7 @@
 const CACHE = 'gabor-pattern-puzzle-v2';
 const CORE = [
   './', './index.html', './manifest.webmanifest',
-  './dist/gabor.js', './dist/game.js', './dist/render.js', './dist/main.js',
+  './dist/gabor.js', './dist/palette.js', './dist/layout.js', './dist/game.js', './dist/render.js', './dist/main.js',
   './icons/icon-192.png', './icons/icon-512.png',
   './icons/maskable-192.png', './icons/maskable-512.png'
 ];
