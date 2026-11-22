@@ -15,7 +15,7 @@ test('Service Workerが配信スコープ外へアクセスせず旧キャッシ
   assert.ok(listeners.has('install')&&listeners.has('activate')&&listeners.has('fetch'));
   let installed;
   listeners.get('install')({waitUntil:promise=>installed=promise});await installed;
-  assert.equal(added.length,11);
+  assert.equal(added.length,13);
   assert.ok(added.every(u=>u.startsWith(scope)),added);
   assert.ok(added.includes(scope+'index.html'));
   let activated;listeners.get('activate')({waitUntil:promise=>activated=promise});await activated;
