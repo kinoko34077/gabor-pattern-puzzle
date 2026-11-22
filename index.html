@@ -76,9 +76,24 @@ dialog::backdrop{background:rgba(10,17,34,.58);backdrop-filter:blur(5px)}
   #score{font-size:21px}
 }
 @media (orientation:portrait){
-  /* 画面方向が変化しても操作欄を下へ移動させない。 */
+  /* 配置を回転させず、各アイコン／数値の中心で表示方向のみ90°変える。 */
   #toolbar{flex-basis:clamp(55px,14vw,72px)}
-  .tool svg{width:29px;height:29px}
+  .tool svg{width:29px;height:29px;transform:rotate(90deg);transform-origin:50% 50%}
+  #score{left:50%;width:max-content;max-width:none;white-space:nowrap;overflow:visible;
+    transform:translate(-50%,-50%) rotate(90deg);transform-origin:center}
+  #theme-toast{transform:translateY(-50%) rotate(90deg);transform-origin:center}
+  /* 操作欄の場所は変えない。ゲーム終了パネルだけを中心で回転する。 */
+  #finished{display:flex;align-items:center;justify-content:center}
+  .end-panel{flex:0 0 auto;width:min(calc(100dvh - 48px),720px);
+    max-height:calc(100vw - 30px);overflow:auto;
+    transform:rotate(90deg);transform-origin:center}
+  /* 設定は横画面での内部配置を保ち、ウィンドウ中央で90°回転する。 */
+  dialog{position:fixed;inset:auto;top:50%;left:50%;margin:0;
+    width:calc(100dvh - 32px);max-width:calc(100dvh - 32px);
+    height:calc(100vw - 24px);max-height:calc(100vw - 24px);
+    transform:translate(-50%,-50%) rotate(90deg);transform-origin:center}
+  .settings-content{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:15px}
+  .settings-content .title-row,.settings-content > p.hint{grid-column:1 / -1}
 }
 </style></head>
 
