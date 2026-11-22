@@ -38,6 +38,7 @@ test('横画面は右側、縦画面は下側へ時計回り相当の7スロッ�
  assert.ok(html.includes('body{flex-direction:column}'));
  const portrait=html.slice(html.indexOf('@media (orientation:portrait)'));
  assert.match(portrait,/#toolbar\s*\{[^}]*grid-template-columns:repeat\(7,minmax\(0,1fr\)\)/);
+ assert.ok(portrait.includes('padding-bottom:env(safe-area-inset-bottom)'));
  for(const [id,col] of [['settings-button',7],['mode-button',6],['palette-button',5],['plus-button',4],['minus-button',3],['hint-button',2],['score',1]]){
    assert.ok(portrait.includes('#toolbar #'+id+'{grid-column:'+col));
  }
