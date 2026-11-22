@@ -45,3 +45,5 @@ jobs:
         run: npm ci
       - name: TypeScriptビルド・単体テスト・バンドルを検証
         run: npm run check
+      - name: ChromeでWeb版と単体HTML版の実操作を検証
+        run: npm run smoke:browser
