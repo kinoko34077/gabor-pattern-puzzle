@@ -11,13 +11,15 @@ const stage=el<HTMLElement>('stage');
 const game=new Game(),renderer=new Renderer(canvas);
 const settings=el<HTMLDialogElement>('settings');
 const modeButton=el<HTMLButtonElement>('mode-button');
+const toolbar=el<HTMLElement>('toolbar');
+const plusButton=el<HTMLButtonElement>('plus-button');
+const minusButton=el<HTMLButtonElement>('minus-button');
+const themeToast=el<HTMLOutputElement>('theme-toast');
 const paletteButton=el<HTMLButtonElement>('palette-button');
 const settingsButton=el<HTMLButtonElement>('settings-button');
 const hintButton=el<HTMLButtonElement>('hint-button');
 const score=el<HTMLElement>('score');
 const clock=el<HTMLElement>('clock');
-const progress=el<HTMLProgressElement>('time-progress');
-const ready=el<HTMLElement>('ready-message');
 const finished=el<HTMLElement>('finished');
 const finalScore=el<HTMLElement>('final-score');
 const bestScore=el<HTMLElement>('best-score');
@@ -67,10 +69,24 @@ function refreshHud():void {
  const t=game.phase==='ready'?game.roundSeconds:game.time;
  const timeString=Math.max(0,t).toFixed(1)+'秒';
  if(clock.textContent!==timeString)clock.textContent=timeString;
- progress.max=game.roundSeconds;progress.value=Math.max(0,Math.min(game.roundSeconds,t));
  const modeText=modeLabel[game.mode];
  if(modeButton.dataset.mode!==game.mode){modeButton.dataset.mode=game.mode;modeButton.setAttribute('aria-label','表示モード：'+modeText);modeButton.title='表示モード：'+modeText;}
- ready.hidden=game.phase!=='ready';
+ const themeIndex=PALETTE_OPTIONS.findIndex(p=>p.id===game.theme);
+ const name=PALETTE_OPTIONS[themeIndex].label;
+ const next=PALETTE_OPTIONS[(themeIndex+1)%PALETTE_OPTIONS.length].label;
+ const description='現在：'+name+'。押すと'+next;
+ if(paletteButton.title!==description){
+   paletteButton.title=description;paletteButton.setAttribute('aria-label','配色：'+description);
+ }
+ const bg=game.backgroundColor;
+ if(toolbar.dataset.color!==bg){
+   toolbar.dataset.color=bg;toolbar.style.backgroundColor=bg;
+   const channels=bg.match(/[a-f0-9]{2}/gi);
+   if(channels&&channels.length===3){
+     const [r,g,b]=channels.map(x=>parseInt(x,16));
+     toolbar.style.color=(r*.2126+g*.7152+b*.0722)>151?'#353b49':'#eeeeee';
+   }
+ }
  finished.hidden=game.phase!=='over';
  if(game.phase==='over'){
    finalScore.textContent=String(Math.floor(game.score));
@@ -131,7 +147,17 @@ canvas.addEventListener('keydown',ev=>{
 
 modeButton.addEventListener('click',()=>{game.cycleMode();scheduleLayout();refreshHud()});
 hintButton.addEventListener('click',()=>game.hint());
-paletteButton.addEventListener('click',()=>{game.randomizePalette();syncControls()});
+let toastTimer:ReturnType<typeof setTimeout>;
+function cycleVisibleTheme():void {
+ const value=game.cycleTheme();syncControls();refreshHud();
+ const label=PALETTE_OPTIONS.find(p=>p.id===value)!.label;
+ themeToast.textContent='デザイン：'+label;themeToast.hidden=false;
+ clearTimeout(toastTimer);
+ toastTimer=setTimeout(()=>{themeToast.hidden=true},1400);
+}
+paletteButton.addEventListener('click',cycleVisibleTheme);
+plusButton.addEventListener('click',()=>{game.setDensity(game.densityRows-1);syncControls();scheduleLayout()});
+minusButton.addEventListener('click',()=>{game.setDensity(game.densityRows+1);syncControls();scheduleLayout()});
 restartButton.addEventListener('click',()=>{game.restart();refreshHud()});
 function openSettings():void{syncControls();game.paused=true;startPoint=null;settings.showModal()}
 settingsButton.addEventListener('click',openSettings);
@@ -145,6 +171,6 @@ resetBackground.addEventListener('click',()=>{game.clearBackground();backgroundI
 patchInput.addEventListener('input',()=>{game.setPatchColor(patchInput.value);themeSelect.value=game.theme});
 densityInput.addEventListener('input',()=>{game.setDensity(Number(densityInput.value));densityValue.textContent=String(game.densityRows);scheduleLayout()});
 speedInput.addEventListener('input',()=>{game.setVisualSpeed(Number(speedInput.value));speedValue.textContent=game.visualSpeed.toFixed(2)+'倍'});
-randomPalette.addEventListener('click',()=>{game.randomizePalette();syncControls()});
+randomPalette.addEventListener('click',cycleVisibleTheme);
 syncControls();
 Object.defineProperty(window,'__gaborPuzzleDev',{value:{game,renderer},configurable:false});
