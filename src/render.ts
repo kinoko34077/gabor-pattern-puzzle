@@ -47,7 +47,7 @@ export class Renderer {
    // ぼかし済みの画像を一度だけ生成し、描画中は2枚の合成比率のみ変化させる。
    const soft=document.createElement('canvas');soft.width=soft.height=256;
    const sx=soft.getContext('2d');if(!sx)throw Error('ぼかし画像用Canvasを利用できません');
-   sx.filter='blur(2px)';sx.drawImage(cv,0,0);sx.filter='none';
+   sx.filter='blur(8px)';sx.drawImage(cv,0,0);sx.filter='none';
    const result={base:cv,soft};this.textures.set(key,result);return result;
  }
  private offset(cell:Cell,point:Point,now:number):Point{
@@ -79,7 +79,8 @@ export class Renderer {
      const tint=game.kindColor(cell.kind);
      const tex=this.texture(cell.kind,family,tint);
      const x0=game.originX+(point.x+.5)*base,y0=game.originY+(point.y+.5)*base;
-     const blur=.5+.5*Math.sin(game.visualNow/2400*game.visualSpeed+cell.kind*.7);
+     // visualNowは待機中・設定中・明示停止中も進み、輪郭が実際に変化する。
+     const blur=.22+.7*(.5+.5*Math.sin(game.visualNow/1250+cell.kind*.7));
      const hintTex=hintBlend>0?this.texture(cell.kind,family,{r:255,g:242,b:173,a:255}):null;
      if(game.mode==='stereo'){ctx.save();ctx.beginPath();ctx.rect(0,0,game.halfWidth,game.height);ctx.clip()}
      this.drawPatch(tex,x0,y0,base*scale*stereoShrink*wx,base*scale*stereoShrink*wy,cell.angle,tint.a/255,blur);
@@ -99,8 +100,10 @@ export class Renderer {
  private drawPatch(tex:PatchTexture,x:number,y:number,w:number,h:number,rotation:number,alpha:number,blur:number):void {
    const ctx=this.ctx;ctx.save();ctx.translate(x,y);ctx.rotate(rotation*Math.PI/180);
    ctx.globalAlpha=alpha;ctx.imageSmoothingEnabled=true;
+   // sharpを常に100%で描くとぼかし画像を重ねても輪郭が残ってしまう。
+   ctx.drawImage(tex.soft,-w/2,-h/2,w,h);
+   ctx.globalAlpha=alpha*(1-blur);
    ctx.drawImage(tex.base,-w/2,-h/2,w,h);
-   if(blur>0.01){ctx.globalAlpha=alpha*blur;ctx.drawImage(tex.soft,-w/2,-h/2,w,h)}
    ctx.restore();
  }
  private drawTimeBar(game:Game):void{
