@@ -1,4 +1,4 @@
-/** Game rules, animation timeline, persistence; independent of Canvas/DOM rendering. */
+/** ゲーム規則・時間軸・保存処理。CanvasやDOM描画には依存しない。 */
 export type Mode = 'gabor' | 'binary' | 'stereo';
 export type Special = 'none' | 'horizontal' | 'vertical' | 'bomb' | 'checker';
 export interface Point { x:number; y:number; }
@@ -15,7 +15,7 @@ export const COLORS:ColorSpec[]=[
 ];
 export const DESIGN={width:960,height:540,controlsWidth:80,baseTile:100,initialSeconds:60,
  removalMs:200,swapMs:200,fallMs:500,bounceMs:200} as const;
-// Row-count timing coefficient array indexed by the board row count, with 960px design width.
+// 盤面の行数ごとの時間補正係数（設計幅960px基準）。
 export const TIME_ADJUST=[2,2,2,2,2,1.69921875,1.69921875,1.787109375,1.71142578125,
  1.58447265625,1.36474609375,1.2060546875,1.01806640625,0.88134765625,
  0.762939453125,0.68359375,0.595703125,0.5,0.5,0.5,0.5] as const;
@@ -37,11 +37,11 @@ export function loadSaved():Saved {
 export function saveGame(game:Game):void {
  const data:Saved={rows:game.rows,color:game.colorIndex,mode:game.mode,
    best:game.best,totalSeconds:game.totalSeconds,lastDay:game.lastDay};
- try{localStorage.setItem(STORAGE_KEY,JSON.stringify(data))}catch{/* storage may be blocked */}
+ try{localStorage.setItem(STORAGE_KEY,JSON.stringify(data))}catch{/* 保存領域が利用できない場合はゲーム進行を優先する */}
 }
 export interface Event { kind:'swap'|'match'|'fall'|'reset'|'gameover'|'hint'; time:number;value?:number; }
 
-/** Logic uses top-down board coordinates; independent from any rendering scale. */
+/** 盤面座標は上から下へ数え、描画スケールには依存しない。 */
 export class Game {
  readonly width=DESIGN.width;
  readonly height=DESIGN.height;
@@ -88,7 +88,11 @@ export class Game {
  get isPlaying():boolean{return this.startedAt!==null&&this.phase!=='over'}
  get timeBarHeight():number{return DESIGN.height/120*clamp(this.time,0,120)}
  private emit(kind:Event['kind'],value?:number){this.eventLog.push({kind,time:this.now,value});if(this.eventLog.length>64)this.eventLog.shift()}
- private schedule(delay:number,action:()=>void){this.tasks.push({at:this.now+Math.max(0,delay),action})}
+ private schedule(delay:number,action:()=>void){
+   const task={at:this.now+Math.max(0,delay),action};
+   const index=this.tasks.findIndex(existing=>existing.at>task.at);
+   this.tasks.splice(index===-1?this.tasks.length:index,0,task);
+ }
  private nextKind():number{return 1+Math.floor(this.random()*this.maxKinds)}
  private get maxKinds():number {return this.rows > (this.mode==='stereo'?6:5)?6:5}
  private makeCell(kind=this.nextKind(),special:Special='none'):Cell {
@@ -106,7 +110,7 @@ export class Game {
      const row:Cell[]=[];
      for(let x=0;x<this.cols;x++){
        let c=this.makeCell();
-       // Avoid automatic initial cascades; play begins with a stable random board.
+       // 開始直後に自動消去が起きない盤面を生成する。
        let tries=0;
        while(tries++<25 && (
          (x>=2&&row[x-1].kind===c.kind&&row[x-2].kind===c.kind)||
@@ -159,7 +163,7 @@ export class Game {
    this.startedAt=this.now;this.phase='playing';this.phaseAge=0;
    if(this.lastDay!==today()){this.totalSeconds=0;this.lastDay=today()};
  }}
- /** User drags from a tile to one of its immediate cardinal neighbours. */
+ /** 上下左右で隣接するセルへの交換を受け付ける。 */
  swap(a:Point,b:Point):boolean {
    if(!this.inside(a)||!this.inside(b)||!this.axial(a,b)||this.busy||this.phase==='over')return false;
    this.start();
@@ -180,7 +184,7 @@ export class Game {
    });
    return true;
  }
- /** Score increases with elapsed play time; matching increases remaining time. */
+ /** 得点は経過時間で増え、消去によって残り時間が加算される。 */
  private timeBonus(count:number):number {
    const difficulty=(1-Math.min(400,Math.max(0,this.score-120))/400)*.5;
    return count*difficulty*(TIME_ADJUST[Math.min(this.rows,TIME_ADJUST.length-1)]??1);
@@ -197,7 +201,7 @@ export class Game {
      }
    }
    this.time+=this.timeBonus(total);
-   // Prepare specials from 4/5 or intersecting matches; placement at a match's terminal tile.
+   // 4個・5個以上の消去や交点から特殊セルを生成する。
    const spawn=new Map<string,{kind:number;special:Special}>();
    for(const m of matches){if(m.cells.length<4)continue;
      const p=m.cells[m.cells.length-1];const key=`${p.x}:${p.y}`;
@@ -209,7 +213,7 @@ export class Game {
      const [x,y]=key.split(':').map(Number);const kind=this.at({x,y})?.kind??1;
      spawn.set(key,{kind,special:'bomb'});remove.delete(key);
    }}
-   // Existing power pieces may destroy whole lines / regions; prevent recursing repeatedly.
+   // 特殊セルの消去範囲を展開し、同じセルを重複処理しない。
    const queue=[...remove].map(v=>v.split(':').map(Number)).map(([x,y])=>({x,y}));
    for(let idx=0;idx<queue.length;idx++){
      const p=queue[idx];const current=this.at(p);if(!current)continue;
@@ -274,7 +278,7 @@ export class Game {
    this.totalSeconds+=this.score;
    saveGame(this);this.emit('gameover');
  }
- // Rotation choreography, expressed as independent timeline data rather than Cocos actions.
+ // 縞の回転パターンを描画から独立した時間列で管理する。
  private orientationTimeline():Array<{pattern:'wait'|'rotate'|'random'|'degree'|'map';duration:number;value:number|(()=>number);map?:'radial'|'columns'|'checker'|'rows'}>{
    const r=()=>this.random();
    const sequences:Array<{pattern:'wait'|'rotate'|'random'|'degree'|'map';duration:number;value:number|(()=>number);map?:'radial'|'columns'|'checker'|'rows'}>=[];
@@ -335,16 +339,15 @@ export class Game {
    this.phaseAge+=dt;
    if(this.isPlaying){this.time=clamp(this.time,0,120)-dt;this.score+=dt;
      if(this.time<=0){this.time=0;this.endGame();return}}
-   // Execute due tasks in stable order; tasks may schedule further work.
-   this.tasks.sort((a,b)=>a.at-b.at);
-   while(this.tasks.length&&this.tasks[0].at<=this.now){const task=this.tasks.shift()!;task.action();this.tasks.sort((a,b)=>a.at-b.at)}
+   // 同時刻の登録順を維持したまま、実行期限を過ぎた処理を順次実行する。
+   while(this.tasks.length&&this.tasks[0].at<=this.now){const task=this.tasks.shift()!;task.action()}
    this.rotationAge+=dt;
    for(const row of this.board)for(const cell of row)if(cell)cell.angle+=cell.rate*dt;
    if(this.rotationAge>=this.rotationDuration){this.rotationAge=0;this.setRotationSequence()}
  }
- /** Public test hook: reproducible board with no dependence on UI drawing. */
+ /** 描画に依存せず再現可能な盤面を設定するテスト用入口。 */
  loadBoard(matrix:number[][]){
-   if(matrix.length!==this.rows||matrix.some(row=>row.length!==this.cols))throw new Error('Board dimensions mismatch');
+   if(matrix.length!==this.rows||matrix.some(row=>row.length!==this.cols))throw new Error('盤面の行数・列数が一致しません');
    this.board=matrix.map(row=>row.map(kind=>this.makeCell(kind)));
    this.tasks=[];this.busy=false;this.phase='ready';this.startedAt=null;this.time=60;this.score=0;
  }

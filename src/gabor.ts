@@ -1,11 +1,11 @@
 /**
- * Procedurally generated Gabor textures.
- * All images are computed from mathematical parameters.
+ * ガボール模様の手続き生成。
+ * すべての画像を数式のパラメータから生成する。
  */
 export type PatchFamily = 'normal' | 'sharp' | 'binary';
 export interface PatchSpec { frequency: number; bias: number; cos: number; sin: number; }
 
-/** Wave frequencies in cycles per 100 logical px, expressed per virtual pixel. */
+/** 波の周波数は論理100pxあたりの周期数から算出する。 */
 const NORMAL: readonly PatchSpec[] = [
   {frequency:0.039974480,bias:127.526,cos:127.967,sin:2.017},
   {frequency:0.030988075,bias:127.441,cos:128.309,sin:1.470},
@@ -24,7 +24,7 @@ const SHARP: readonly PatchSpec[] = [
   {frequency:0.024984550,bias:127.547,cos:1.399,sin:-128.415},
   {frequency:0.020000407,bias:127.539,cos:128.216,sin:1.061},
 ];
-/** Black/white patches use a high-contrast stripe family with a soft circular border. */
+/** 白黒モードでは高コントラストの縞と円形の外周減衰を用いる。 */
 const BINARY: readonly PatchSpec[] = [
   {frequency:0.06998421,bias:126.71881,cos:-435.77173,sin:-11.63746},
   {frequency:0.05000000,bias:127.50000,cos:-623.26419,sin:0.00000},
@@ -39,15 +39,15 @@ export const EDGE_FIT = {sigmaX:15.529173402504066,sigmaY:15.52915956748004,
   exponent:2.009377905312548,offset:-0.8199866308619226} as const;
 const clamp=(n:number,min:number,max:number)=>Math.min(max,Math.max(min,n));
 
-/** Pure model so it can be tested without any DOM APIs. Returned channels are straight RGBA. */
+/** DOMを必要としない純粋な数式。戻り値は明度と不透明度。 */
 export function samplePatch(type: number,family:PatchFamily,u:number,v:number):[number,number] {
   const spec=PATCH_FAMILIES[family][clamp(type|0,1,7)-1];
-  // u/v are coordinates in logical pattern pixels; centre is (0,0).
+  // u/vは論理画素で、中心を(0,0)とする。
   const wave=2*Math.PI*spec.frequency*u;
   const light=clamp(spec.bias+spec.cos*Math.cos(wave)+spec.sin*Math.sin(wave),0,255);
   if(family==='binary') {
-    // Independent numerical approximation of the high-contrast circle.
-    // Its 100px mask has a radius ~45px, with a ~0.24px antialiased transition.
+    // 高コントラストな円形マスクの数値近似。
+    // 論理100pxで半径約45px、境界の遷移幅は約0.24px。
     const r=Math.hypot(u-0.06358432458825,v-0.06355420214318);
     const alpha=255/(1+Math.exp(Math.max(-50,Math.min(50,(r-44.991946656886405)/0.24096192115137702))));
     return [light,alpha];

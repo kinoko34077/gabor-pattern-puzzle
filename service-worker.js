@@ -1,5 +1,5 @@
-/* Gabor Pattern Puzzle: offline app shell. Scoped to the current installation path. */
-const CACHE = 'gabor-pattern-puzzle-v1';
+/* オフライン配信用ファイル。現在のインストール先の配信スコープに限定する。 */
+const CACHE = 'gabor-pattern-puzzle-v2';
 const CORE = [
   './', './index.html', './manifest.webmanifest',
   './dist/gabor.js', './dist/game.js', './dist/render.js', './dist/main.js',
@@ -31,7 +31,7 @@ self.addEventListener('fetch', event => {
       try {
         const res = await fetch(event.request);
         if (res.ok) return res;
-      } catch { /* offline */ }
+      } catch { /* オフライン時はキャッシュへ切り替える */ }
       const cache = await caches.open(CACHE);
       return await cache.match(url('./index.html')) || Response.error();
     })());

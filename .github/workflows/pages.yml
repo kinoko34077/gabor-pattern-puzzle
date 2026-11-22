@@ -1,4 +1,4 @@
-name: Build and publish Pages
+name: Pagesのビルドと公開
 on:
   pull_request:
   push:
@@ -20,7 +20,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - name: Prepare static site
+      - name: 静的サイトを配置
         run: |
           mkdir -p _site
           cp index.html manifest.webmanifest service-worker.js _site/

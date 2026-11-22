@@ -1,14 +1,17 @@
-# Architecture
+# アーキテクチャ
 
-The application runs entirely in the browser, with no server-side gameplay.
+本アプリはサーバー側のゲーム処理を持たず、ブラウザ内で完結します。
 
-- Core game state and match resolution are in `Game`, independent of DOM/Canvas.
-- Gabor textures are generated from frequency, phase, contrast and radial transparency parameters.
-- A high-DPI Canvas renderer maps a fixed 960×540 logical coordinate system to the device viewport.
-- Input coordinates are translated to the logical coordinate system before game operations.
-- A scoped service worker pre-caches the app shell, ES modules, manifest, and icons.
-- GitHub Pages hosts the static files under a repository subpath; all references are relative to the current path.
+- `Game` が盤面・消去・時間・得点・アニメーション状態を管理し、DOM・Canvasには依存しません。
+- `src/gabor.ts` が周波数・位相・コントラスト・外周透過率から模様を生成します。
+- 描画は960×540の論理座標を基準とし、高解像度Canvasで拡大表示します。
+- マウス・タッチ入力の座標は、操作処理に渡す前に論理座標へ変換します。
+- 描画の色補正とヒントの補間値は、必要な条件でのみ更新します。
+- Service Workerはアプリの配信スコープ内のファイルだけをキャッシュします。
+- GitHub Pagesのサブディレクトリ配信に対応するため、ファイル参照は相対パスとします。
 
-## PWA behavior
+## オフライン更新
 
-The app installs from the HTTPS origin. It caches only same-origin, same-scope GET resources. Navigation falls back to cached `index.html` when offline, while static assets are served cache-first. A new service-worker cache version removes older app caches at activation.
+HTTPS上でインストールでき、同一オリジン・同一スコープのGETリクエストだけを扱います。画面遷移はネットワークを優先し、通信できない場合はキャッシュ済みの`index.html`へ戻します。静的ファイルはキャッシュを優先します。
+
+Service Workerの新しいキャッシュ版が有効になると、以前の本アプリのキャッシュを削除します。HTML・JavaScript・manifest・アイコンは同一の版で事前キャッシュします。

@@ -1,20 +1,20 @@
 import {Game,DESIGN,type Point} from './game.js';
 import {Renderer} from './render.js';
 const canvas=document.getElementById('game') as HTMLCanvasElement|null;
-if(!canvas)throw new Error('Missing game canvas');
+if(!canvas)throw new Error('ゲーム用Canvasが見つかりません');
 const game=new Game();
 const renderer=new Renderer(canvas);
 let last=performance.now();
 function run(now:number){const dt=Math.min(.12,(now-last)/1000);last=now;game.tick(dt);renderer.render(game);requestAnimationFrame(run)}
 requestAnimationFrame(run);
-// Pointer coordinate translation uses the 960×540 logical layout.
+// ポインター座標を960×540の論理座標へ変換する。
 function pointFrom(ev:PointerEvent):Point & {px:number;py:number} {
  const r=canvas!.getBoundingClientRect();
  let px=(ev.clientX-r.x)/r.width*DESIGN.width;
  let py=(ev.clientY-r.y)/r.height*DESIGN.height;
- // The canvas is visually rotated on portrait screens, not the game coordinate space.
+ // 縦画面では表示のみを回転し、ゲームの論理座標系は変更しない。
  if(window.innerHeight>window.innerWidth && matchMedia('(max-width: 700px)').matches){
-   // In portrait CSS rotation: local X advances down the viewport, local Y advances left.
+   // 縦画面回転時のローカルXは画面下方向、Yは左方向へ進む。
    const cx=(ev.clientX-window.innerWidth/2),cy=(ev.clientY-window.innerHeight/2);
    px=(cy+canvas!.clientWidth/2)/canvas!.clientWidth*DESIGN.width;
    py=(-cx+canvas!.clientHeight/2)/canvas!.clientHeight*DESIGN.height;
@@ -56,7 +56,7 @@ canvas.addEventListener('pointermove',ev=>{
 function clear(ev:PointerEvent){if(ev.pointerId===activeId){startPoint=null;activeId=null}}
 canvas.addEventListener('pointerup',clear);canvas.addEventListener('pointercancel',clear);
 canvas.addEventListener('contextmenu',ev=>ev.preventDefault());
-// Keyboard navigation remains available without changing the game viewport.
+// ゲーム画面の寸法を変えずにキーボード操作を提供する。
 canvas.tabIndex=0;canvas.setAttribute('role','application');
 canvas.setAttribute('aria-label','ガボールパッチを上下左右にドラッグして三つ以上そろえるパズル');
 let focus:Point={x:0,y:0};
